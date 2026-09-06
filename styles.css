@@ -76,3 +76,28 @@
 .picker-empty{padding:20px 10px;font-size:16px;color:var(--muted)}
 @media(min-width:760px){.property-picker{left:18px;right:18px;padding:16px}.land-tags{grid-template-columns:repeat(2,minmax(0,1fr))}.property-picker-label{font-size:14px}}
 @media(max-width:350px){.property-navigation .land-tag{grid-template-columns:54px minmax(0,1fr) 16px;gap:7px}.land-tag-image{width:54px;height:68px}.picker-current-image{width:26px;flex-basis:26px;height:30px}.property-navigation .property-picker-toggle{gap:4px;padding-inline:4px}}
+/* One icon size and alignment across every navigation control. */
+.ui-icon{display:inline-block;width:24px;height:24px;flex:0 0 24px;vertical-align:middle}
+.card-cta{display:grid;grid-template-columns:minmax(0,1fr) 24px;padding:12px 0;gap:10px;min-height:52px}
+.control-label{min-width:0;overflow-wrap:anywhere}
+.card-map>span:nth-child(2),.card-map-options summary>span:nth-child(2){min-width:0;overflow-wrap:anywhere}
+.card-cta>span[aria-hidden],.card-map>span[aria-hidden],.card-map-options summary>span[aria-hidden],.land-tag-arrow{display:flex;align-items:center;justify-content:center;flex:0 0 24px;width:24px;line-height:1}
+.card-map,.card-map-options summary{display:grid;grid-template-columns:24px minmax(0,1fr) 24px;align-items:center;gap:8px}
+.card-map-options[open]>summary>span[aria-hidden] .ui-icon{transform:rotate(180deg)}
+.gallery-nav{display:grid;grid-template-columns:48px minmax(0,auto) 48px;align-items:center;justify-content:center;gap:12px;margin:12px auto 24px;max-width:100%}
+.gallery-nav>span{text-align:center;min-width:0;line-height:1.35}
+.gallery-nav button{display:grid;place-items:center;width:48px;height:48px;min-width:48px;padding:0;line-height:1}
+.property-navigation>.property-previous,.property-navigation>.property-next,.property-navigation>.property-nav-close,.panel-close,.property-navigation .picker-dismiss{display:grid;place-items:center;padding:0;line-height:1}
+.button,.back{gap:8px}
+.button>.ui-icon,.back>.ui-icon{flex-shrink:0}
+.gallery{scrollbar-width:none}
+.gallery::-webkit-scrollbar{display:none}
+.land-tag-arrow{width:24px}
+.property-navigation .land-tag{grid-template-columns:68px minmax(0,1fr) 24px}
+.grid{align-items:stretch}
+.card:not(.is-expanded){display:flex;flex-direction:column}
+.card:not(.is-expanded)>.card-summary{display:flex;flex-direction:column;flex:1}
+.card:not(.is-expanded) .card-inner{display:flex;flex-direction:column;flex:1}
+.card:not(.is-expanded) .card-map,.card:not(.is-expanded) .card-map-options,.card:not(.is-expanded) .card-map-unavailable{margin-top:auto}
+.card:not(.is-expanded) .card-map,.card:not(.is-expanded) .card-map-options summary,.card:not(.is-expanded) .card-map-unavailable{min-height:90px}
+@media(max-width:350px){.property-navigation .land-tag{grid-template-columns:54px minmax(0,1fr) 24px}.gallery-nav{gap:8px}}
