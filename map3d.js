@@ -42,6 +42,8 @@ export function buildLandPinGeoJSON(properties){
      pinIndex:pinIndex+1,
      accuracy,
      conflict:Boolean(property.coordinateConflict),
+     category:property.coordinateConflict?'unsure':property.type==='plot'?'house':'field',
+     iconKey:property.coordinateConflict?'pin-unsure':property.type==='plot'?'pin-house':'pin-field',
      label:String(propertyIndex+1),
      kind:propertyKind(property),
      area:areaText(property),
@@ -111,6 +113,9 @@ function cubeIcon(){return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d=
 function closeIcon(){return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>';}
 function locateIcon(){return '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3"/></svg>';}
 function listIcon(){return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>';}
+function housePinIcon(){return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 11 8-7 8 7v9H4v-9Z"/><path d="M9 20v-6h6v6"/></svg>';}
+function fieldPinIcon(){return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21V9"/><path d="M12 13c-5 0-7-3-7-7 5 0 7 3 7 7Zm0 3c5 0 7-3 7-7-5 0-7 3-7 7ZM4 21h16"/></svg>';}
+function unsurePinIcon(){return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.4 9a3 3 0 1 1 4.8 2.4c-1.5 1-2.2 1.6-2.2 3.1"/><circle cx="12" cy="19" r="1"/></svg>';}
 
 function dialogMarkup(summary){
  return `<dialog class="map3d-dialog" aria-labelledby="map3d-title">
@@ -127,7 +132,10 @@ function dialogMarkup(summary){
     <div class="map3d-map" aria-label="Διαδραστικός τρισδιάστατος δορυφορικός χάρτης των Εργατών"></div>
     <div class="map3d-loading" role="status"><span></span><strong>Φόρτωση 3D εδάφους…</strong></div>
     <div class="map3d-help"><strong>Ζωντανή 3D περιοχή</strong><span>Σύρε: μετακίνηση · δεξί σύρσιμο ή δύο δάχτυλα: περιστροφή · ροδέλα ή τσίμπημα: zoom</span></div>
-    <div class="map3d-legend" aria-label="Υπόμνημα πινέζων"><span><i class="exact"></i> Ακριβής κατά την πηγή</span><span><i class="approximate"></i> Κατά προσέγγιση</span><span><i class="conflict"></i> Διαφορετικές πινέζες</span></div>
+    <div class="map3d-legend" aria-label="Υπόμνημα πινέζων">
+     <div class="map3d-legend-row"><strong>Τύπος</strong><span><b class="pin-kind">${housePinIcon()}</b> Οικόπεδο</span><span><b class="pin-kind">${fieldPinIcon()}</b> Οικιστικό χωράφι</span><span><b class="pin-kind unsure">${unsurePinIcon()}</b> Αβέβαιη θέση</span></div>
+     <div class="map3d-legend-row"><strong>Ακρίβεια</strong><span><i class="legend-dot exact"></i> Πηγή: ακριβής</span><span><i class="legend-dot approximate"></i> Κατά προσέγγιση</span><span><i class="legend-dot conflict"></i> Πηγές διαφωνούν</span></div>
+    </div>
     <aside class="map3d-panel" aria-label="Στοιχεία ακινήτου" aria-live="polite" hidden></aside>
    </div>
   </div>
@@ -226,11 +234,20 @@ function addLand3DLayers(map,officialParcels,conceptualBuildings){
 }
 
 function addLandLayers(map,pinData){
+ const createIcon=(name,draw)=>{
+  const canvas=document.createElement('canvas');canvas.width=48;canvas.height=48;
+  const context=canvas.getContext('2d');context.strokeStyle='#fff';context.fillStyle='#fff';context.lineWidth=5;context.lineCap='round';context.lineJoin='round';
+  draw(context);map.addImage(name,context.getImageData(0,0,48,48),{pixelRatio:2});
+ };
+ createIcon('pin-house',context=>{context.beginPath();context.moveTo(7,23);context.lineTo(24,8);context.lineTo(41,23);context.stroke();context.beginPath();context.rect(11,22,26,19);context.moveTo(21,41);context.lineTo(21,29);context.lineTo(28,29);context.lineTo(28,41);context.stroke();});
+ createIcon('pin-field',context=>{context.beginPath();context.moveTo(24,42);context.lineTo(24,16);context.stroke();context.beginPath();context.moveTo(24,28);context.bezierCurveTo(13,28,8,22,8,13);context.bezierCurveTo(18,13,24,18,24,28);context.fill();context.beginPath();context.moveTo(24,33);context.bezierCurveTo(35,33,40,27,40,18);context.bezierCurveTo(30,18,24,23,24,33);context.fill();context.beginPath();context.moveTo(7,42);context.lineTo(41,42);context.stroke();});
+ createIcon('pin-unsure',context=>{context.font='700 38px Arial';context.textAlign='center';context.textBaseline='middle';context.fillText('?',24,25);});
  map.addSource('land-pins',{type:'geojson',data:pinData});
- map.addLayer({id:'land-pin-halo',type:'circle',source:'land-pins',paint:{'circle-radius':16,'circle-color':'rgba(255,255,255,.86)','circle-stroke-width':2,'circle-stroke-color':'rgba(14,39,48,.45)'}});
- map.addLayer({id:'land-pins',type:'circle',source:'land-pins',paint:{'circle-radius':10,'circle-color':['case',['get','conflict'],'#c84735',['==',['get','accuracy'],'exact'],'#14836f','#e7a52d'],'circle-stroke-width':2,'circle-stroke-color':'#fff'}});
- map.addLayer({id:'land-pin-labels',type:'symbol',source:'land-pins',layout:{'text-field':['get','label'],'text-size':12,'text-font':['Open Sans Semibold'],'text-allow-overlap':true},paint:{'text-color':'#fff','text-halo-color':'rgba(0,0,0,.35)','text-halo-width':.5}});
- map.addLayer({id:'selected-pin',type:'circle',source:'land-pins',filter:['==',['get','propertyId'],''],paint:{'circle-radius':19,'circle-color':'rgba(255,255,255,0)','circle-stroke-width':4,'circle-stroke-color':'#fff'}});
+ map.addLayer({id:'land-pin-halo',type:'circle',source:'land-pins',paint:{'circle-radius':22,'circle-color':'rgba(255,255,255,.9)','circle-stroke-width':2,'circle-stroke-color':'rgba(14,39,48,.5)'}});
+ map.addLayer({id:'land-pins',type:'circle',source:'land-pins',paint:{'circle-radius':18,'circle-color':['case',['get','conflict'],'#c84735',['==',['get','accuracy'],'exact'],'#14836f','#e7a52d'],'circle-stroke-width':2,'circle-stroke-color':'#fff'}});
+ map.addLayer({id:'land-pin-icons',type:'symbol',source:'land-pins',layout:{'icon-image':['get','iconKey'],'icon-size':.82,'icon-offset':[0,-4],'icon-allow-overlap':true,'icon-ignore-placement':true}});
+ map.addLayer({id:'land-pin-labels',type:'symbol',source:'land-pins',layout:{'text-field':['get','label'],'text-size':10,'text-font':['Open Sans Semibold'],'text-offset':[0,.9],'text-allow-overlap':true,'text-ignore-placement':true},paint:{'text-color':'#fff','text-halo-color':'rgba(0,0,0,.5)','text-halo-width':1}});
+ map.addLayer({id:'selected-pin',type:'circle',source:'land-pins',filter:['==',['get','propertyId'],''],paint:{'circle-radius':26,'circle-color':'rgba(255,255,255,0)','circle-stroke-width':4,'circle-stroke-color':'#fff'}});
 }
 
 export async function createErgates3D(properties){
@@ -303,7 +320,7 @@ const resetView=()=>map?.flyTo({...ERGATES_VIEW,duration:1000});
    addLandLayers(map,pinData);
    dialog.querySelector('.map3d-loading').hidden=true;
   });
-  const interactiveLayers=['land-pins','land-pin-labels','land-pin-halo'];
+  const interactiveLayers=['land-pins','land-pin-icons','land-pin-labels','land-pin-halo'];
   map.on('mouseenter','land-pins',()=>{map.getCanvas().style.cursor='pointer';});
   map.on('mouseleave','land-pins',()=>{map.getCanvas().style.cursor='';});
   map.on('click',event=>{
@@ -334,7 +351,7 @@ const resetView=()=>map?.flyTo({...ERGATES_VIEW,duration:1000});
   try{await ensureMap();}catch(error){dialog.querySelector('.map3d-loading').innerHTML='<strong>Ο 3D χάρτης δεν φορτώθηκε.</strong><span>Έλεγξε τη σύνδεση στο διαδίκτυο και δοκίμασε ξανά.</span>';console.error('Ergates 3D map failed',error);}
   dialog.querySelector('.map3d-close-button').focus({preventScroll:true});
  };
- window.render_game_to_text=()=>JSON.stringify({mode:dialog.open?'ergates-3d-map':'catalogue',coordinateSystem:'Geographic coordinates [longitude, latitude]. North is up only when bearing is 0.',properties:summary.total,mappedProperties:summary.mapped,uniquePublishedPins:summary.pins,selectedPropertyId,land3D:{officialMatchedParcels:officialParcels.features.length,officialMatchedProperties:new Set(officialParcels.features.map(feature=>feature.properties.propertyId)).size,conceptualBuildingVolumes:conceptualBuildings.features.length,conceptualBuildingProperties:new Set(conceptualBuildings.features.map(feature=>feature.properties.propertyId)).size,selectedOfficialParcel:Boolean(selectedPropertyId&&officialParcels.features.some(feature=>feature.properties.propertyId===selectedPropertyId)),selectedConceptualBuilding:Boolean(selectedPropertyId&&conceptualBuildings.features.some(feature=>feature.properties.propertyId===selectedPropertyId))},realism:map?{terrain:Boolean(map.getTerrain()),buildings:Boolean(map.getLayer('real-buildings')),visible3DBuildings:map.getLayer('real-buildings')?map.queryRenderedFeatures({layers:['real-buildings']}).length:0,roads:Boolean(map.getLayer('real-roads')),placeLabels:Boolean(map.getLayer('real-place-labels'))}:null,camera:map?{center:[map.getCenter().lng,map.getCenter().lat],zoom:map.getZoom(),pitch:map.getPitch(),bearing:map.getBearing()}:null});
+ window.render_game_to_text=()=>JSON.stringify({mode:dialog.open?'ergates-3d-map':'catalogue',coordinateSystem:'Geographic coordinates [longitude, latitude]. North is up only when bearing is 0.',properties:summary.total,mappedProperties:summary.mapped,uniquePublishedPins:summary.pins,pinCategories:Object.fromEntries(['house','field','unsure'].map(category=>[category,pinData.features.filter(feature=>feature.properties.category===category).length])),selectedPropertyId,land3D:{officialMatchedParcels:officialParcels.features.length,officialMatchedProperties:new Set(officialParcels.features.map(feature=>feature.properties.propertyId)).size,conceptualBuildingVolumes:conceptualBuildings.features.length,conceptualBuildingProperties:new Set(conceptualBuildings.features.map(feature=>feature.properties.propertyId)).size,selectedOfficialParcel:Boolean(selectedPropertyId&&officialParcels.features.some(feature=>feature.properties.propertyId===selectedPropertyId)),selectedConceptualBuilding:Boolean(selectedPropertyId&&conceptualBuildings.features.some(feature=>feature.properties.propertyId===selectedPropertyId))},realism:map?{terrain:Boolean(map.getTerrain()),buildings:Boolean(map.getLayer('real-buildings')),visible3DBuildings:map.getLayer('real-buildings')?map.queryRenderedFeatures({layers:['real-buildings']}).length:0,roads:Boolean(map.getLayer('real-roads')),placeLabels:Boolean(map.getLayer('real-place-labels'))}:null,camera:map?{center:[map.getCenter().lng,map.getCenter().lat],zoom:map.getZoom(),pitch:map.getPitch(),bearing:map.getBearing()}:null});
  window.advanceTime=()=>map?.triggerRepaint();
  return {open,close:()=>dialog.close(),summary,get map(){return map;}};
 }

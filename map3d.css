@@ -33,10 +33,15 @@ body.map3d-open{overflow:hidden}
 .map3d-help strong,.map3d-help span{display:block}
 .map3d-help strong{font-size:14px}
 .map3d-help span{font-size:13px;color:#d4e2e4;line-height:1.35}
-.map3d-legend{top:96px;display:flex;flex-wrap:wrap;gap:8px 12px;padding:8px 10px;border-radius:8px;font-size:12px}
-.map3d-legend span{display:flex;align-items:center;gap:5px}
-.map3d-legend i{width:11px;height:11px;border:2px solid #fff;border-radius:50%}
-.map3d-legend i.exact{background:#14836f}.map3d-legend i.approximate{background:#e7a52d}.map3d-legend i.conflict{background:#c84735}
+.map3d-legend{top:96px;display:grid;gap:7px;padding:8px 10px;border-radius:8px;font-size:12px}
+.map3d-legend-row{display:flex;align-items:center;flex-wrap:wrap;gap:6px 12px}
+.map3d-legend-row>strong{min-width:58px;color:#9fd7d2;font-size:12px;text-transform:uppercase;letter-spacing:.05em}
+.map3d-legend span{display:flex;align-items:center;gap:5px;white-space:nowrap}
+.map3d-legend .legend-dot{width:11px;height:11px;border:2px solid #fff;border-radius:50%}
+.map3d-legend .legend-dot.exact{background:#14836f}.map3d-legend .legend-dot.approximate{background:#e7a52d}.map3d-legend .legend-dot.conflict{background:#c84735}
+.map3d-legend .pin-kind{display:grid;place-items:center;width:23px;height:23px;border-radius:50%;background:#14836f;color:#fff}
+.map3d-legend .pin-kind.unsure{background:#c84735}
+.map3d-legend .pin-kind svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .map3d-panel{position:absolute;z-index:12;top:12px;right:12px;bottom:12px;width:clamp(340px,32vw,440px);display:flex;flex-direction:column;background:#f7faf9;color:#183039;border:1px solid #c9d9da;border-radius:14px;box-shadow:0 12px 40px #0008;overflow:hidden}
 .map3d-panel-head{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:62px;padding:7px 8px 7px 16px;background:#123e49;color:#fff;flex:0 0 auto}
 .map3d-panel-head>span{font-size:17px;font-weight:700}
@@ -86,7 +91,8 @@ body.map3d-open{overflow:hidden}
  .map3d-title-wrap strong{font-size:18px}.map3d-title-wrap span{max-width:44vw;font-size:12px}
  .map3d-list-button{width:48px;padding:0;justify-content:center}.map3d-list-button span{display:none}
  .map3d-help{top:8px;left:8px;max-width:calc(100% - 72px)}.map3d-help span{font-size:12px}
- .map3d-legend{left:8px;right:8px;top:96px;gap:6px 10px}
+ .map3d-legend{left:8px;right:8px;top:96px;gap:6px}
+ .map3d-legend-row{gap:5px 9px}.map3d-legend-row>strong{min-width:54px}
  .map3d-panel{top:auto;left:0;right:0;bottom:0;width:auto;max-height:52dvh;border-radius:16px 16px 0 0;border-bottom:0;padding-bottom:env(safe-area-inset-bottom)}
  .map3d-panel-photo{height:150px}.map3d-panel h2{font-size:24px}.map3d-price{font-size:23px}
  .map3d-property-list{min-height:0}

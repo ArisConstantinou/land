@@ -22,6 +22,9 @@ test('every 3D marker is an existing published source coordinate',()=>{
   assert.ok(property,'marker property must exist');
   assert.ok(property.sources.some(source=>source.coordinates&&source.coordinates.lat===lat&&source.coordinates.lng===lng),property.id+' marker must come from a source');
   assert.ok(['exact','published','approximate'].includes(feature.properties.accuracy));
+  assert.ok(['house','field','unsure'].includes(feature.properties.category));
+  assert.equal(feature.properties.iconKey,`pin-${feature.properties.category}`);
+  if(feature.properties.conflict)assert.equal(feature.properties.category,'unsure');
  }
 });
 

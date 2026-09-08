@@ -28,3 +28,14 @@ Original prompt: USE ALL LANDS AND PRODUCE A 3D AREA OF ERGATES WHICH CAN ROTATE
 - Negative case passed: a mapped listing without a safe parcel match or sufficient planning data displays neither fabricated geometry nor a conceptual building and explains why in its panel.
 - Validation passed: 13/13 tests, syntax checks, build and zero browser console errors/warnings.
 - TODO: commit, push and verify the new GitHub Pages deployment.
+
+## Pin icon and legend follow-up
+
+- User reported that numbered/color-only pins were not understandable and requested proper house, land/farm and unsure icons.
+- Added data-derived pin categories: house for non-conflicting plots, sprout/field for non-conflicting residential fields, and question mark for every pin belonging to a property whose sources publish conflicting coordinates.
+- Accuracy remains an independent color channel: green source-declared exact, amber approximate/published and red conflicting sources. The redesigned two-row legend explains both icon type and color accuracy.
+- Current pin counts: 7 house, 19 field and 75 unsure, totaling the same 101 source-backed pins.
+- Real-browser QA passed at 1280×720 and 390×844: icons and legend are readable, a pin click selects its property, and the mobile page has no horizontal overflow.
+- Automated validation passed: JavaScript syntax, 13/13 tests, static build, and the game-state capture reports all 101 categorized pins.
+- Asset versions bumped for the new 3D JavaScript and CSS.
+- TODO: commit/push to main and live GitHub Pages validation.
