@@ -38,4 +38,5 @@ Original prompt: USE ALL LANDS AND PRODUCE A 3D AREA OF ERGATES WHICH CAN ROTATE
 - Real-browser QA passed at 1280×720 and 390×844: icons and legend are readable, a pin click selects its property, and the mobile page has no horizontal overflow.
 - Automated validation passed: JavaScript syntax, 13/13 tests, static build, and the game-state capture reports all 101 categorized pins.
 - Asset versions bumped for the new 3D JavaScript and CSS.
-- TODO: commit/push to main and live GitHub Pages validation.
+- Committed and pushed to `main` as `3272f1a`. GitHub Pages built that commit successfully.
+- Live public QA passed at 390×844: all three icon categories and both legend rows render, 3D terrain/buildings/roads/labels load, there is no horizontal overflow, and the console has zero errors or warnings.
