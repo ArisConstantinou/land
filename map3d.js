@@ -1,0 +1,284 @@
+const MAPLIBRE_VERSION='6.8.0';
+const MAPLIBRE_MODULE=`https://unpkg.com/maplibre-gl@${MAPLIBRE_VERSION}/dist/maplibre-gl.mjs`;
+const MAPLIBRE_CSS=`https://unpkg.com/maplibre-gl@${MAPLIBRE_VERSION}/dist/maplibre-gl.css`;
+const ERGATES_VIEW={center:[33.2425,35.0555],zoom:13.85,pitch:58,bearing:-24};
+
+const htmlEscape=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+const numberFormat=new Intl.NumberFormat('el-CY',{maximumFractionDigits:2});
+const euroFormat=new Intl.NumberFormat('el-CY',{style:'currency',currency:'EUR',maximumFractionDigits:0});
+const values=(property,key)=>(property.facts[key]||[]).map(entry=>entry.value);
+const numericValues=(property,key)=>values(property,key).filter(value=>typeof value==='number');
+const unique=items=>[...new Set(items)];
+const propertyKind=property=>property.type==='plot'?'Οικόπεδο':'Οικιστικό χωράφι';
+const valueRange=(items,formatter)=>{const ordered=unique(items).sort((a,b)=>a-b);return ordered.length===0?'Δεν αναφέρεται':ordered.length===1?formatter(ordered[0]):`${formatter(ordered[0])} – ${formatter(ordered.at(-1))}`;};
+const areaText=property=>valueRange(numericValues(property,'area'),value=>numberFormat.format(value));
+const priceText=property=>numericValues(property,'price').length?valueRange(numericValues(property,'price'),value=>euroFormat.format(value)):'Τιμή κατόπιν επικοινωνίας';
+
+export function uniquePropertyCoordinates(property){
+ const seen=new Set();
+ return property.sources.flatMap(source=>{
+  const coordinate=source.coordinates;
+  if(!coordinate||!Number.isFinite(coordinate.lat)||!Number.isFinite(coordinate.lng))return [];
+  const key=`${coordinate.lat.toFixed(7)},${coordinate.lng.toFixed(7)}`;
+  if(seen.has(key))return [];
+  seen.add(key);
+  return [{...coordinate,sourceId:source.id,sourceName:source.source,key}];
+ });
+}
+
+export function buildLandPinGeoJSON(properties){
+ const features=[];
+ properties.forEach((property,propertyIndex)=>{
+  uniquePropertyCoordinates(property).forEach((coordinate,pinIndex)=>{
+   const accuracy=coordinate.accuracy==='exact'?'exact':coordinate.accuracy==='published'?'published':'approximate';
+   features.push({
+    type:'Feature',
+    id:features.length,
+    geometry:{type:'Point',coordinates:[coordinate.lng,coordinate.lat]},
+    properties:{
+     propertyId:property.id,
+     propertyNumber:propertyIndex+1,
+     pinIndex:pinIndex+1,
+     accuracy,
+     conflict:Boolean(property.coordinateConflict),
+     label:String(propertyIndex+1),
+     kind:propertyKind(property),
+     area:areaText(property),
+     sourceName:coordinate.sourceName||'Πηγή αγγελίας'
+    }
+   });
+  });
+ });
+ return {type:'FeatureCollection',features};
+}
+
+export function summarizeMapProperties(properties){
+ const mapped=properties.filter(property=>uniquePropertyCoordinates(property).length>0);
+ const pins=buildLandPinGeoJSON(properties).features;
+ return {
+  total:properties.length,
+  mapped:mapped.length,
+  unmapped:properties.length-mapped.length,
+  pins:pins.length,
+  exactProperties:mapped.filter(property=>property.exactCoordinates).length,
+  conflictingProperties:mapped.filter(property=>property.coordinateConflict).length
+ };
+}
+
+function injectMapLibreCSS(){
+ if(document.querySelector('link[data-maplibre-3d]'))return;
+ const link=document.createElement('link');
+ link.rel='stylesheet';link.href=MAPLIBRE_CSS;link.dataset.maplibre3d='';
+ document.head.append(link);
+}
+
+function cubeIcon(){return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2 8 4.5v10L12 21l-8-4.5v-10L12 2Z"/><path d="m4.5 6.8 7.5 4.3 7.5-4.3M12 11.1V21"/></svg>';}
+function closeIcon(){return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>';}
+function locateIcon(){return '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3"/></svg>';}
+function listIcon(){return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>';}
+
+function dialogMarkup(summary){
+ return `<dialog class="map3d-dialog" aria-labelledby="map3d-title">
+  <div class="map3d-shell">
+   <header class="map3d-header">
+    <div class="map3d-title-wrap">${cubeIcon()}<div><strong id="map3d-title">3D Εργάτες</strong><span>${summary.mapped} από ${summary.total} ακίνητα · πραγματικό ανάγλυφο και 3D κτίρια</span></div></div>
+    <div class="map3d-header-actions">
+     <button type="button" class="map3d-list-button">${listIcon()}<span>Όλα τα ακίνητα</span></button>
+     <button type="button" class="map3d-reset-button" aria-label="Επαναφορά 3D προβολής" title="Επαναφορά 3D προβολής">${locateIcon()}</button>
+     <button type="button" class="map3d-close-button" aria-label="Κλείσιμο 3D χάρτη" title="Κλείσιμο">${closeIcon()}</button>
+    </div>
+   </header>
+   <div class="map3d-stage">
+    <div class="map3d-map" aria-label="Διαδραστικός τρισδιάστατος δορυφορικός χάρτης των Εργατών"></div>
+    <div class="map3d-loading" role="status"><span></span><strong>Φόρτωση 3D εδάφους…</strong></div>
+    <div class="map3d-help"><strong>Ζωντανή 3D περιοχή</strong><span>Σύρε: μετακίνηση · δεξί σύρσιμο ή δύο δάχτυλα: περιστροφή · ροδέλα ή τσίμπημα: zoom</span></div>
+    <div class="map3d-legend" aria-label="Υπόμνημα πινέζων"><span><i class="exact"></i> Ακριβής κατά την πηγή</span><span><i class="approximate"></i> Κατά προσέγγιση</span><span><i class="conflict"></i> Διαφορετικές πινέζες</span></div>
+    <aside class="map3d-panel" aria-label="Στοιχεία ακινήτου" aria-live="polite" hidden></aside>
+   </div>
+  </div>
+ </dialog>`;
+}
+
+function markerAccuracy(property,coordinate){
+ if(property.coordinateConflict)return '⚠️ Οι πηγές δείχνουν διαφορετικές πινέζες. Η συγκεκριμένη θέση χρειάζεται επιβεβαίωση.';
+ if(coordinate?.accuracy==='exact')return 'Η πηγή δηλώνει αυτή τη συντεταγμένη ως ακριβή.';
+ if(coordinate?.accuracy==='published')return 'Δημοσιευμένη πινέζα αγγελίας· δεν επιβεβαιώθηκε κτηματολογικά.';
+ return coordinate?'Κατά προσέγγιση δημοσιευμένη θέση· δεν δείχνει κατ’ ανάγκη τα όρια του τεμαχίου.':'Η ακριβής θέση δεν δημοσιεύεται. Το ακίνητο παραμένει στη λίστα χωρίς πινέζα.';
+}
+
+function panelPhoto(property){
+ const image=property.images[0];
+ return image?`<img src="${htmlEscape(image.localPath||image.url)}" alt="Φωτογραφία αγγελίας για ${htmlEscape(propertyKind(property))} ${htmlEscape(areaText(property))} τ.μ." loading="lazy">`:'<div class="map3d-no-photo">Δεν δημοσιεύεται φωτογραφία</div>';
+}
+
+function propertyPanelMarkup(property,index,total,coordinate){
+ const zones=unique(values(property,'zone'));
+ const coordinateCount=uniquePropertyCoordinates(property).length;
+ const mapsUrl=coordinate?`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${coordinate.lat},${coordinate.lng}`)}`:'';
+ return `<div class="map3d-panel-head"><span>Ακίνητο ${index+1} / ${total}</span><button type="button" class="map3d-panel-close" aria-label="Κλείσιμο στοιχείων">${closeIcon()}</button></div>
+  <div class="map3d-panel-scroll">
+   <div class="map3d-panel-photo">${panelPhoto(property)}</div>
+   <p class="map3d-kicker">${htmlEscape(propertyKind(property))} · Εργάτες</p>
+   <h2>${htmlEscape(areaText(property))} τ.μ.</h2>
+   <span class="map3d-price-label">Ζητούμενη τιμή</span><strong class="map3d-price">${htmlEscape(priceText(property))}</strong>
+   <div class="map3d-panel-badges">${zones.map(zone=>`<span>${htmlEscape(zone)}</span>`).join('')}${property.titleStated?'<span>Τίτλος</span>':''}${property.isShare?'<span class="warning">Μερίδιο</span>':''}${property.landlocked?'<span class="warning">Περίκλειστο</span>':''}</div>
+   <p class="map3d-location-note">${htmlEscape(markerAccuracy(property,coordinate))}</p>
+   ${coordinateCount>1?`<p class="map3d-coordinate-count">${coordinateCount} διαφορετικές δημοσιευμένες πινέζες για αυτό το ακίνητο εμφανίζονται στον χάρτη.</p>`:''}
+   <div class="map3d-panel-actions">
+    <a class="map3d-primary" href="property.html?id=${encodeURIComponent(property.id)}">Πλήρη στοιχεία ακινήτου</a>
+    ${mapsUrl?`<a href="${mapsUrl}" target="_blank" rel="noopener noreferrer">Άνοιγμα στο Google Maps</a>`:''}
+   </div>
+  </div>`;
+}
+
+function propertyListMarkup(properties,summary){
+ return `<div class="map3d-panel-head"><span>Και τα ${summary.total} ακίνητα</span><button type="button" class="map3d-panel-close" aria-label="Κλείσιμο λίστας">${closeIcon()}</button></div>
+  <div class="map3d-list-tools"><input type="search" class="map3d-search" placeholder="Εμβαδό, τιμή ή ζώνη…" aria-label="Αναζήτηση ακινήτων"><p>${summary.mapped} με πινέζα · ${summary.unmapped} χωρίς δημοσιευμένη θέση</p></div>
+  <div class="map3d-property-list" role="list"></div>`;
+}
+
+function searchableText(property){return [propertyKind(property),areaText(property),priceText(property),...values(property,'zone'),property.titleStated?'τίτλος':'',property.isShare?'μερίδιο':'',property.landlocked?'περίκλειστο':''].join(' ').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();}
+function propertyListItems(properties,query=''){
+ const normalized=query.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+ return properties.map((property,index)=>({property,index})).filter(({property})=>!normalized||searchableText(property).includes(normalized)).map(({property,index})=>{
+  const coordinateCount=uniquePropertyCoordinates(property).length;
+  return `<button type="button" class="map3d-property-row" data-property-id="${htmlEscape(property.id)}" role="listitem"><span class="map3d-property-number">${index+1}</span><span><strong>${htmlEscape(areaText(property))} τ.μ. · ${htmlEscape(propertyKind(property))}</strong><small>${htmlEscape(priceText(property))}</small><em class="${coordinateCount?'mapped':'unmapped'}">${coordinateCount?`${coordinateCount} ${coordinateCount===1?'πινέζα':'πινέζες'}`:'Χωρίς δημοσιευμένη θέση'}</em></span></button>`;
+ }).join('')||'<p class="map3d-list-empty">Δεν βρέθηκε ακίνητο με αυτά τα στοιχεία.</p>';
+}
+
+function mapStyle(){return {
+ version:8,
+ glyphs:'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
+ sources:{
+  satellite:{type:'raster',tiles:['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],tileSize:256,maxzoom:19,attribution:'Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community'},
+  terrain:{type:'raster-dem',url:'https://tiles.mapterhorn.com/tilejson.json',tileSize:512,maxzoom:14,attribution:'Terrain © MapTiler © OpenStreetMap contributors'},
+  terrainShade:{type:'raster-dem',url:'https://tiles.mapterhorn.com/tilejson.json',tileSize:512,maxzoom:14},
+  openfreemap:{type:'vector',url:'https://tiles.openfreemap.org/planet',attribution:'Map data © OpenStreetMap contributors'}
+ },
+ layers:[
+  {id:'satellite',type:'raster',source:'satellite',paint:{'raster-saturation':.08,'raster-contrast':.1}},
+  {id:'terrain-shading',type:'hillshade',source:'terrainShade',paint:{'hillshade-exaggeration':.28,'hillshade-shadow-color':'#172d32','hillshade-highlight-color':'#fff4d6','hillshade-accent-color':'#355d54'}}
+ ],
+ light:{anchor:'map',color:'#fff2d8',intensity:.62,position:[1.15,210,35]},
+ sky:{'sky-color':'#b8d8eb','horizon-color':'#f5f0df','fog-color':'#d8e5e7','sky-horizon-blend':.35,'horizon-fog-blend':.25,'fog-ground-blend':.55,'atmosphere-blend':.7}
+};}
+
+function addRealismLayers(map){
+ const roadFilter=['all',['==',['geometry-type'],'LineString'],['in',['get','class'],['literal',['motorway','trunk','primary','secondary','tertiary','minor','service']]]];
+ map.addLayer({id:'real-buildings',type:'fill-extrusion',source:'openfreemap','source-layer':'building',minzoom:13.4,filter:['all',['!=',['get','hide_3d'],true],['has','render_height']],paint:{
+  'fill-extrusion-color':['interpolate',['linear'],['get','render_height'],0,'#d6c39d',12,'#e2d1b1',35,'#efe4cf'],
+  'fill-extrusion-height':['interpolate',['linear'],['zoom'],13.4,0,14.4,['get','render_height']],
+  'fill-extrusion-base':['coalesce',['get','render_min_height'],0],
+  'fill-extrusion-opacity':.86,
+  'fill-extrusion-vertical-gradient':true
+ }});
+ map.addLayer({id:'real-road-casing',type:'line',source:'openfreemap','source-layer':'transportation',minzoom:12,filter:roadFilter,paint:{'line-color':'rgba(25,35,37,.78)','line-width':['interpolate',['linear'],['zoom'],12,.9,16,5.8],'line-opacity':.58}});
+ map.addLayer({id:'real-roads',type:'line',source:'openfreemap','source-layer':'transportation',minzoom:12,filter:roadFilter,paint:{'line-color':'#f2dfb9','line-width':['interpolate',['linear'],['zoom'],12,.45,16,3.5],'line-opacity':.82}});
+ map.addLayer({id:'real-place-labels',type:'symbol',source:'openfreemap','source-layer':'place',minzoom:11,filter:['in',['get','class'],['literal',['town','village','suburb','quarter','hamlet','neighbourhood']]],layout:{'text-field':['coalesce',['get','name:el'],['get','name']],'text-font':['Open Sans Semibold'],'text-size':['interpolate',['linear'],['zoom'],11,13,16,17],'text-letter-spacing':.02,'text-padding':4},paint:{'text-color':'#fffdf5','text-halo-color':'rgba(12,28,32,.9)','text-halo-width':2,'text-halo-blur':.5}});
+}
+
+function addLandLayers(map,pinData){
+ map.addSource('land-pins',{type:'geojson',data:pinData});
+ map.addLayer({id:'land-pin-halo',type:'circle',source:'land-pins',paint:{'circle-radius':16,'circle-color':'rgba(255,255,255,.86)','circle-stroke-width':2,'circle-stroke-color':'rgba(14,39,48,.45)'}});
+ map.addLayer({id:'land-pins',type:'circle',source:'land-pins',paint:{'circle-radius':10,'circle-color':['case',['get','conflict'],'#c84735',['==',['get','accuracy'],'exact'],'#14836f','#e7a52d'],'circle-stroke-width':2,'circle-stroke-color':'#fff'}});
+ map.addLayer({id:'land-pin-labels',type:'symbol',source:'land-pins',layout:{'text-field':['get','label'],'text-size':12,'text-font':['Open Sans Semibold'],'text-allow-overlap':true},paint:{'text-color':'#fff','text-halo-color':'rgba(0,0,0,.35)','text-halo-width':.5}});
+ map.addLayer({id:'selected-pin',type:'circle',source:'land-pins',filter:['==',['get','propertyId'],''],paint:{'circle-radius':19,'circle-color':'rgba(255,255,255,0)','circle-stroke-width':4,'circle-stroke-color':'#fff'}});
+}
+
+export async function createErgates3D(properties){
+ injectMapLibreCSS();
+ const summary=summarizeMapProperties(properties);
+ const pinData=buildLandPinGeoJSON(properties);
+ const wrapper=document.createElement('div');wrapper.innerHTML=dialogMarkup(summary);
+ const dialog=wrapper.firstElementChild;document.body.append(dialog);
+ const panel=dialog.querySelector('.map3d-panel');
+ let map=null;let maplibregl=null;let focusedBeforeOpen=null;let selectedPropertyId=null;
+
+ const closePanel=()=>{panel.hidden=true;selectedPropertyId=null;if(map?.getLayer('selected-pin'))map.setFilter('selected-pin',['==',['get','propertyId'],'']);};
+ const focusProperty=(property,coordinate=null,fly=true)=>{
+  const index=properties.findIndex(item=>item.id===property.id);
+  const coordinates=uniquePropertyCoordinates(property);
+  const pin=coordinate||coordinates[0]||null;
+  selectedPropertyId=property.id;panel.innerHTML=propertyPanelMarkup(property,index,properties.length,pin);panel.hidden=false;
+  panel.querySelector('.map3d-panel-close').addEventListener('click',closePanel);
+  if(map?.getLayer('selected-pin'))map.setFilter('selected-pin',['==',['get','propertyId'],property.id]);
+  if(fly&&pin&&map)map.flyTo({center:[pin.lng,pin.lat],zoom:Math.max(map.getZoom(),15.4),pitch:68,bearing:map.getBearing(),duration:900});
+ };
+ const openList=()=>{
+  panel.innerHTML=propertyListMarkup(properties,summary);panel.hidden=false;
+  panel.querySelector('.map3d-panel-close').addEventListener('click',closePanel);
+  const search=panel.querySelector('.map3d-search'),list=panel.querySelector('.map3d-property-list');
+  const render=()=>{list.innerHTML=propertyListItems(properties,search.value);};render();
+  search.addEventListener('input',render);
+  list.addEventListener('click',event=>{const row=event.target.closest('[data-property-id]');if(!row)return;const property=properties.find(item=>item.id===row.dataset.propertyId);if(property)focusProperty(property);});
+ search.focus({preventScroll:true});
+};
+ const openLocationGroup=features=>{
+  const seen=new Set();
+  const choices=features.flatMap(feature=>{
+   const propertyId=feature.properties?.propertyId;
+   if(!propertyId||seen.has(propertyId))return [];
+   seen.add(propertyId);
+   const property=properties.find(item=>item.id===propertyId);
+   return property?[{property,index:properties.indexOf(property),coordinates:feature.geometry.coordinates}]:[];
+  });
+  selectedPropertyId=null;
+  panel.innerHTML=`<div class="map3d-panel-head"><span>${choices.length} ακίνητα στην ίδια πινέζα</span><button type="button" class="map3d-panel-close" aria-label="Κλείσιμο επιλογής">${closeIcon()}</button></div><p class="map3d-group-note">Η κοινή κατά προσέγγιση πινέζα προέρχεται από τις αγγελίες και δεν αποδεικνύει ότι τα τεμάχια βρίσκονται στο ίδιο ακριβές σημείο. Επίλεξε ακίνητο:</p><div class="map3d-property-list" role="list">${choices.map(({property,index},choiceIndex)=>`<button type="button" class="map3d-property-row" data-choice-index="${choiceIndex}" role="listitem"><span class="map3d-property-number">${index+1}</span><span><strong>${htmlEscape(areaText(property))} τ.μ. · ${htmlEscape(propertyKind(property))}</strong><small>${htmlEscape(priceText(property))}</small><em class="mapped">Δημοσιευμένη πινέζα</em></span></button>`).join('')}</div>`;
+  panel.hidden=false;
+  panel.querySelector('.map3d-panel-close').addEventListener('click',closePanel);
+  panel.querySelector('.map3d-property-list').addEventListener('click',event=>{
+   const row=event.target.closest('[data-choice-index]');if(!row)return;
+   const choice=choices[Number(row.dataset.choiceIndex)];if(!choice)return;
+   const [lng,lat]=choice.coordinates;
+   const coordinate=uniquePropertyCoordinates(choice.property).find(item=>Math.abs(item.lng-lng)<1e-7&&Math.abs(item.lat-lat)<1e-7)||{lng,lat,accuracy:'approximate'};
+   focusProperty(choice.property,coordinate,false);
+  });
+ };
+const resetView=()=>map?.flyTo({...ERGATES_VIEW,duration:1000});
+ const ensureMap=async()=>{
+  if(map){map.resize();return;}
+  maplibregl=await import(MAPLIBRE_MODULE);
+  map=new maplibregl.Map({container:dialog.querySelector('.map3d-map'),style:mapStyle(),...ERGATES_VIEW,maxPitch:82,minZoom:10,maxZoom:19,antialias:true,attributionControl:false,maplibreLogo:true});
+  map.addControl(new maplibregl.NavigationControl({visualizePitch:true,showZoom:true,showCompass:true}),'top-right');
+  map.addControl(new maplibregl.AttributionControl({compact:true}),'bottom-left');
+  map.on('load',()=>{
+   map.setTerrain({source:'terrain',exaggeration:1.08});
+   addRealismLayers(map);
+   addLandLayers(map,pinData);
+   dialog.querySelector('.map3d-loading').hidden=true;
+  });
+  const interactiveLayers=['land-pins','land-pin-labels','land-pin-halo'];
+  map.on('mouseenter','land-pins',()=>{map.getCanvas().style.cursor='pointer';});
+  map.on('mouseleave','land-pins',()=>{map.getCanvas().style.cursor='';});
+  map.on('click',event=>{
+   const rendered=map.queryRenderedFeatures(event.point,{layers:interactiveLayers}).filter(item=>item.properties?.propertyId);
+   const features=[...new Map(rendered.map(feature=>[feature.properties.propertyId,feature])).values()];
+   if(!features.length)return;
+   if(features.length>1){openLocationGroup(features);return;}
+   const feature=features[0];
+   const property=properties.find(item=>item.id===feature.properties.propertyId);if(!property)return;
+   const [lng,lat]=feature.geometry.coordinates;
+   const coordinate=uniquePropertyCoordinates(property).find(item=>Math.abs(item.lng-lng)<1e-7&&Math.abs(item.lat-lat)<1e-7)||{lng,lat,accuracy:feature.properties.accuracy};
+   focusProperty(property,coordinate,false);
+  });
+  map.on('moveend',()=>{window.dispatchEvent(new CustomEvent('ergates-3d-state-change'));});
+ };
+ dialog.querySelector('.map3d-close-button').addEventListener('click',()=>dialog.close());
+ dialog.querySelector('.map3d-panel').addEventListener('click',event=>event.stopPropagation());
+ dialog.querySelector('.map3d-list-button').addEventListener('click',openList);
+ dialog.querySelector('.map3d-reset-button').addEventListener('click',resetView);
+ dialog.addEventListener('close',()=>{closePanel();document.body.classList.remove('map3d-open');focusedBeforeOpen?.focus({preventScroll:true});});
+ dialog.addEventListener('keydown',event=>{
+  if(event.key.toLowerCase()==='f'&&!event.ctrlKey&&!event.metaKey&&!event.altKey&&event.target.tagName!=='INPUT'){
+   event.preventDefault();if(document.fullscreenElement)document.exitFullscreen();else dialog.requestFullscreen?.();
+  }
+ });
+ const open=async()=>{
+  focusedBeforeOpen=document.activeElement;dialog.showModal();document.body.classList.add('map3d-open');
+  try{await ensureMap();}catch(error){dialog.querySelector('.map3d-loading').innerHTML='<strong>Ο 3D χάρτης δεν φορτώθηκε.</strong><span>Έλεγξε τη σύνδεση στο διαδίκτυο και δοκίμασε ξανά.</span>';console.error('Ergates 3D map failed',error);}
+  dialog.querySelector('.map3d-close-button').focus({preventScroll:true});
+ };
+ window.render_game_to_text=()=>JSON.stringify({mode:dialog.open?'ergates-3d-map':'catalogue',coordinateSystem:'Geographic coordinates [longitude, latitude]. North is up only when bearing is 0.',properties:summary.total,mappedProperties:summary.mapped,uniquePublishedPins:summary.pins,selectedPropertyId,realism:map?{terrain:Boolean(map.getTerrain()),buildings:Boolean(map.getLayer('real-buildings')),visible3DBuildings:map.getLayer('real-buildings')?map.queryRenderedFeatures({layers:['real-buildings']}).length:0,roads:Boolean(map.getLayer('real-roads')),placeLabels:Boolean(map.getLayer('real-place-labels'))}:null,camera:map?{center:[map.getCenter().lng,map.getCenter().lat],zoom:map.getZoom(),pitch:map.getPitch(),bearing:map.getBearing()}:null});
+ window.advanceTime=()=>map?.triggerRepaint();
+ return {open,close:()=>dialog.close(),summary,get map(){return map;}};
+}
