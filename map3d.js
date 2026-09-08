@@ -16,22 +16,30 @@ const priceText=property=>numericValues(property,'price').length?valueRange(nume
 const minimumNumeric=(property,key)=>{const items=numericValues(property,key);return items.length?Math.min(...items):null;};
 
 export function uniquePropertyCoordinates(property){
- const seen=new Set();
- return property.sources.flatMap(source=>{
+ const coordinates=[];const byKey=new Map();
+ property.sources.forEach(source=>{
   const coordinate=source.coordinates;
-  if(!coordinate||!Number.isFinite(coordinate.lat)||!Number.isFinite(coordinate.lng))return [];
+  if(!coordinate||!Number.isFinite(coordinate.lat)||!Number.isFinite(coordinate.lng))return;
   const key=`${coordinate.lat.toFixed(7)},${coordinate.lng.toFixed(7)}`;
-  if(seen.has(key))return [];
-  seen.add(key);
-  return [{...coordinate,sourceId:source.id,sourceName:source.source,key}];
+  const existing=byKey.get(key);
+  if(existing){existing.sourceCount++;existing.sourceIds.push(source.id);return;}
+  const item={...coordinate,sourceId:source.id,sourceIds:[source.id],sourceName:source.source,key,sourceCount:1};
+  byKey.set(key,item);coordinates.push(item);
  });
+ return coordinates;
 }
+
+const coordinateRank=coordinate=>({exact:300,published:200,approximate:100}[coordinate.accuracy]||0)+coordinate.sourceCount*10;
+const primaryPropertyCoordinate=(property,coordinates=uniquePropertyCoordinates(property))=>coordinates.reduce((best,item)=>!best||coordinateRank(item)>coordinateRank(best)?item:best,null);
 
 export function buildLandPinGeoJSON(properties){
  const features=[];
  properties.forEach((property,propertyIndex)=>{
-  uniquePropertyCoordinates(property).forEach((coordinate,pinIndex)=>{
+  const coordinates=uniquePropertyCoordinates(property);
+  const primary=primaryPropertyCoordinate(property,coordinates);
+  coordinates.forEach((coordinate,pinIndex)=>{
    const accuracy=coordinate.accuracy==='exact'?'exact':coordinate.accuracy==='published'?'published':'approximate';
+   const isPrimary=coordinate===primary;
    features.push({
     type:'Feature',
     id:features.length,
@@ -40,8 +48,12 @@ export function buildLandPinGeoJSON(properties){
      propertyId:property.id,
      propertyNumber:propertyIndex+1,
      pinIndex:pinIndex+1,
+     isPrimary,
+     alternativeCount:isPrimary?coordinates.length-1:0,
+     alternativeLabel:isPrimary&&coordinates.length>1?`+${coordinates.length-1}`:'',
      accuracy,
      conflict:Boolean(property.coordinateConflict),
+     propertyType:property.type,
      category:property.coordinateConflict?'unsure':property.type==='plot'?'house':'field',
      iconKey:property.coordinateConflict?'pin-unsure':property.type==='plot'?'pin-house':'pin-field',
      label:String(propertyIndex+1),
@@ -113,6 +125,7 @@ function cubeIcon(){return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d=
 function closeIcon(){return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>';}
 function locateIcon(){return '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3"/></svg>';}
 function listIcon(){return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>';}
+function filterIcon(){return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"/></svg>';}
 function housePinIcon(){return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 11 8-7 8 7v9H4v-9Z"/><path d="M9 20v-6h6v6"/></svg>';}
 function fieldPinIcon(){return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21V9"/><path d="M12 13c-5 0-7-3-7-7 5 0 7 3 7 7Zm0 3c5 0 7-3 7-7-5 0-7 3-7 7ZM4 21h16"/></svg>';}
 function unsurePinIcon(){return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.4 9a3 3 0 1 1 4.8 2.4c-1.5 1-2.2 1.6-2.2 3.1"/><circle cx="12" cy="19" r="1"/></svg>';}
@@ -123,6 +136,7 @@ function dialogMarkup(summary){
    <header class="map3d-header">
     <div class="map3d-title-wrap">${cubeIcon()}<div><strong id="map3d-title">3D Εργάτες</strong><span>${summary.mapped} από ${summary.total} ακίνητα · πραγματικό ανάγλυφο και 3D κτίρια</span></div></div>
     <div class="map3d-header-actions">
+     <button type="button" class="map3d-filter-button" aria-label="Φίλτρα πινέζων" aria-expanded="false" title="Φίλτρα πινέζων">${filterIcon()}<span class="map3d-filter-active" hidden>0</span></button>
      <button type="button" class="map3d-list-button" aria-label="Όλα τα ακίνητα">${listIcon()}<span>Όλα τα ακίνητα</span></button>
      <button type="button" class="map3d-reset-button" aria-label="Επαναφορά 3D προβολής" title="Επαναφορά 3D προβολής">${locateIcon()}</button>
      <button type="button" class="map3d-close-button" aria-label="Κλείσιμο 3D χάρτη" title="Κλείσιμο">${closeIcon()}</button>
@@ -131,7 +145,22 @@ function dialogMarkup(summary){
    <div class="map3d-stage">
     <div class="map3d-map" aria-label="Διαδραστικός τρισδιάστατος δορυφορικός χάρτης των Εργατών"></div>
     <div class="map3d-loading" role="status"><span></span><strong>Φόρτωση 3D εδάφους…</strong></div>
-    <div class="map3d-help"><strong>Ζωντανή 3D περιοχή</strong><span>Σύρε: μετακίνηση · δεξί σύρσιμο ή δύο δάχτυλα: περιστροφή · ροδέλα ή τσίμπημα: zoom</span></div>
+    <div class="map3d-help"><strong>Ζωντανή 3D περιοχή</strong><span>Αριστερό σύρσιμο: pan · δεξί πάνω/κάτω: κλίση · δύο δάχτυλα: κλίση/περιστροφή · ροδέλα ή pinch: zoom</span></div>
+    <div class="map3d-filter-popover" aria-label="Φίλτρα πινέζων" hidden>
+     <div class="map3d-filter-head"><strong>Φίλτρα pins</strong><span class="map3d-filter-count">${summary.mapped} / ${summary.mapped}</span></div>
+     <fieldset data-pin-filter="type"><legend>Τύπος ακινήτου</legend><div class="map3d-filter-options">
+      <button type="button" data-filter-value="all" aria-pressed="true">${filterIcon()}<span>Όλα</span></button>
+      <button type="button" data-filter-value="plot" aria-pressed="false">${housePinIcon()}<span>Οικόπεδα</span></button>
+      <button type="button" data-filter-value="field" aria-pressed="false">${fieldPinIcon()}<span>Χωράφια</span></button>
+     </div></fieldset>
+     <fieldset data-pin-filter="accuracy"><legend>Ακρίβεια θέσης</legend><div class="map3d-filter-options">
+      <button type="button" data-filter-value="all" aria-pressed="true">${filterIcon()}<span>Όλες</span></button>
+      <button type="button" data-filter-value="exact" aria-pressed="false"><i class="legend-dot exact"></i><span>Ακριβής</span></button>
+      <button type="button" data-filter-value="approximate" aria-pressed="false"><i class="legend-dot approximate"></i><span>Περίπου</span></button>
+      <button type="button" data-filter-value="unsure" aria-pressed="false">${unsurePinIcon()}<span>Αβέβαιη</span></button>
+     </div></fieldset>
+     <button type="button" class="map3d-filter-reset">Καθαρισμός φίλτρων</button>
+    </div>
     <div class="map3d-legend" aria-label="Υπόμνημα πινέζων">
      <div class="map3d-legend-row"><strong>Τύπος</strong><span><b class="pin-kind">${housePinIcon()}</b> Οικόπεδο</span><span><b class="pin-kind">${fieldPinIcon()}</b> Οικιστικό χωράφι</span><span><b class="pin-kind unsure">${unsurePinIcon()}</b> Αβέβαιη θέση</span></div>
      <div class="map3d-legend-row"><strong>Ακρίβεια</strong><span><i class="legend-dot exact"></i> Πηγή: ακριβής</span><span><i class="legend-dot approximate"></i> Κατά προσέγγιση</span><span><i class="legend-dot conflict"></i> Πηγές διαφωνούν</span></div>
@@ -168,7 +197,7 @@ function propertyPanelMarkup(property,index,total,coordinate,land3D){
    <p class="map3d-location-note">${htmlEscape(markerAccuracy(property,coordinate))}</p>
    ${land3D.officialParcels.length?`<div class="map3d-3d-note verified"><strong>Πραγματικό 3D τεμάχιο Κτηματολογίου</strong><p>Το επίσημο περίγραμμα κάτω από την πινέζα ταυτίστηκε με ${land3D.officialParcels.some(item=>item.properties.matchReason.includes('parcel-number'))?'τον δημοσιευμένο αριθμό τεμαχίου':'το δημοσιευμένο εμβαδό'}. Προβάλλεται ως υπερυψωμένη γαλάζια επιφάνεια.</p></div>`:''}
    ${land3D.concept?`<div class="map3d-3d-note concept"><strong>Ενδεικτικός 3D όγκος δόμησης</strong><p>${numberFormat.format(land3D.concept.properties.footprintArea)} τ.μ. κάλυψη · ${numberFormat.format(land3D.concept.properties.height)} μ. ύψος. Σχηματική απεικόνιση από τα δημοσιευμένα πολεοδομικά στοιχεία — όχι αρχιτεκτονικό σχέδιο ή πραγματική θέση κτιρίου.</p></div>`:'<div class="map3d-3d-note unavailable"><strong>Δεν εμφανίζεται ενδεικτικό κτίριο</strong><p>Λείπουν δημοσιευμένα στοιχεία κάλυψης ή ύψους/ορόφων για ασφαλή υπολογισμό.</p></div>'}
-   ${coordinateCount>1?`<p class="map3d-coordinate-count">${coordinateCount} διαφορετικές δημοσιευμένες πινέζες για αυτό το ακίνητο εμφανίζονται στον χάρτη.</p>`:''}
+   ${coordinateCount>1?`<p class="map3d-coordinate-count"><strong>+${coordinateCount-1} πιθανές θέσεις</strong> · Οι εναλλακτικές δημοσιευμένες πινέζες εμφανίζονται τώρα ως μικρότερα κόκκινα σημεία. Επίλεξε μία για να δεις τη συγκεκριμένη πηγή.</p>`:''}
    <div class="map3d-panel-actions">
     <a class="map3d-primary" href="property.html?id=${encodeURIComponent(property.id)}">Πλήρη στοιχεία ακινήτου</a>
     ${mapsUrl?`<a href="${mapsUrl}" target="_blank" rel="noopener noreferrer">Άνοιγμα στο Google Maps</a>`:''}
@@ -243,10 +272,16 @@ function addLandLayers(map,pinData){
  createIcon('pin-field',context=>{context.beginPath();context.moveTo(24,42);context.lineTo(24,16);context.stroke();context.beginPath();context.moveTo(24,28);context.bezierCurveTo(13,28,8,22,8,13);context.bezierCurveTo(18,13,24,18,24,28);context.fill();context.beginPath();context.moveTo(24,33);context.bezierCurveTo(35,33,40,27,40,18);context.bezierCurveTo(30,18,24,23,24,33);context.fill();context.beginPath();context.moveTo(7,42);context.lineTo(41,42);context.stroke();});
  createIcon('pin-unsure',context=>{context.font='700 38px Arial';context.textAlign='center';context.textBaseline='middle';context.fillText('?',24,25);});
  map.addSource('land-pins',{type:'geojson',data:pinData});
- map.addLayer({id:'land-pin-halo',type:'circle',source:'land-pins',paint:{'circle-radius':22,'circle-color':'rgba(255,255,255,.9)','circle-stroke-width':2,'circle-stroke-color':'rgba(14,39,48,.5)'}});
- map.addLayer({id:'land-pins',type:'circle',source:'land-pins',paint:{'circle-radius':18,'circle-color':['case',['get','conflict'],'#c84735',['==',['get','accuracy'],'exact'],'#14836f','#e7a52d'],'circle-stroke-width':2,'circle-stroke-color':'#fff'}});
- map.addLayer({id:'land-pin-icons',type:'symbol',source:'land-pins',layout:{'icon-image':['get','iconKey'],'icon-size':.82,'icon-offset':[0,-4],'icon-allow-overlap':true,'icon-ignore-placement':true}});
- map.addLayer({id:'land-pin-labels',type:'symbol',source:'land-pins',layout:{'text-field':['get','label'],'text-size':10,'text-font':['Open Sans Semibold'],'text-offset':[0,.9],'text-allow-overlap':true,'text-ignore-placement':true},paint:{'text-color':'#fff','text-halo-color':'rgba(0,0,0,.5)','text-halo-width':1}});
+ const primary=['==',['get','isPrimary'],true];
+ const hiddenAlternatives=['all',['==',['get','isPrimary'],false],['==',['get','propertyId'],'']];
+ map.addLayer({id:'land-pin-halo',type:'circle',source:'land-pins',filter:primary,paint:{'circle-radius':22,'circle-color':'rgba(255,255,255,.9)','circle-stroke-width':2,'circle-stroke-color':'rgba(14,39,48,.5)'}});
+ map.addLayer({id:'land-pins',type:'circle',source:'land-pins',filter:primary,paint:{'circle-radius':18,'circle-color':['case',['get','conflict'],'#c84735',['==',['get','accuracy'],'exact'],'#14836f','#e7a52d'],'circle-stroke-width':2,'circle-stroke-color':'#fff'}});
+ map.addLayer({id:'land-pin-icons',type:'symbol',source:'land-pins',filter:primary,layout:{'icon-image':['get','iconKey'],'icon-size':.82,'icon-offset':[0,-4],'icon-allow-overlap':true,'icon-ignore-placement':true}});
+ map.addLayer({id:'land-pin-labels',type:'symbol',source:'land-pins',filter:primary,layout:{'text-field':['get','label'],'text-size':10,'text-font':['Open Sans Semibold'],'text-offset':[0,.9],'text-allow-overlap':true,'text-ignore-placement':true},paint:{'text-color':'#fff','text-halo-color':'rgba(0,0,0,.5)','text-halo-width':1}});
+ map.addLayer({id:'land-pin-alt-badges',type:'symbol',source:'land-pins',filter:['all',primary,['>', ['get','alternativeCount'],0]],layout:{'text-field':['get','alternativeLabel'],'text-size':11,'text-font':['Open Sans Semibold'],'text-offset':[1.45,-1.25],'text-allow-overlap':true,'text-ignore-placement':true},paint:{'text-color':'#fff','text-halo-color':'#812b23','text-halo-width':4}});
+ map.addLayer({id:'land-pin-alternative-halo',type:'circle',source:'land-pins',filter:hiddenAlternatives,paint:{'circle-radius':13,'circle-color':'rgba(255,255,255,.82)','circle-stroke-width':1,'circle-stroke-color':'rgba(14,39,48,.45)'}});
+ map.addLayer({id:'land-pin-alternatives',type:'circle',source:'land-pins',filter:hiddenAlternatives,paint:{'circle-radius':9,'circle-color':'#c84735','circle-opacity':.82,'circle-stroke-width':2,'circle-stroke-color':'#fff'}});
+ map.addLayer({id:'land-pin-alternative-labels',type:'symbol',source:'land-pins',filter:hiddenAlternatives,layout:{'text-field':['to-string',['get','pinIndex']],'text-size':10,'text-font':['Open Sans Semibold'],'text-allow-overlap':true,'text-ignore-placement':true},paint:{'text-color':'#fff','text-halo-color':'rgba(0,0,0,.45)','text-halo-width':1}});
  map.addLayer({id:'selected-pin',type:'circle',source:'land-pins',filter:['==',['get','propertyId'],''],paint:{'circle-radius':26,'circle-color':'rgba(255,255,255,0)','circle-stroke-width':4,'circle-stroke-color':'#fff'}});
 }
 
@@ -259,20 +294,40 @@ export async function createErgates3D(properties){
  const wrapper=document.createElement('div');wrapper.innerHTML=dialogMarkup(summary);
  const dialog=wrapper.firstElementChild;document.body.append(dialog);
  const panel=dialog.querySelector('.map3d-panel');
+ const filterPopover=dialog.querySelector('.map3d-filter-popover');
+ const filterButton=dialog.querySelector('.map3d-filter-button');
+ const primaryFeatures=pinData.features.filter(feature=>feature.properties.isPrimary);
  let map=null;let maplibregl=null;let focusedBeforeOpen=null;let selectedPropertyId=null;
+ const pinFilters={type:'all',accuracy:'all'};
+
+ const featureMatchesFilters=feature=>{
+  const item=feature.properties;
+  const typeMatch=pinFilters.type==='all'||item.propertyType===pinFilters.type;
+  const accuracyMatch=pinFilters.accuracy==='all'||pinFilters.accuracy==='unsure'&&item.conflict||pinFilters.accuracy==='exact'&&!item.conflict&&item.accuracy==='exact'||pinFilters.accuracy==='approximate'&&!item.conflict&&item.accuracy!=='exact';
+  return typeMatch&&accuracyMatch;
+ };
+ const primaryFilterExpression=(extras=[])=>{
+  const filters=[['==',['get','isPrimary'],true]];
+  if(pinFilters.type!=='all')filters.push(['==',['get','propertyType'],pinFilters.type]);
+  if(pinFilters.accuracy==='unsure')filters.push(['==',['get','conflict'],true]);
+  if(pinFilters.accuracy==='exact')filters.push(['all',['==',['get','conflict'],false],['==',['get','accuracy'],'exact']]);
+  if(pinFilters.accuracy==='approximate')filters.push(['all',['==',['get','conflict'],false],['!=',['get','accuracy'],'exact']]);
+  return ['all',...filters,...extras];
+ };
 
  const setSelected3DFilters=propertyId=>{
-  for(const layer of ['official-land-slabs','official-land-outline','conceptual-building','conceptual-building-roof','conceptual-building-label'])if(map?.getLayer(layer))map.setFilter(layer,['==',['get','propertyId'],propertyId||'']);
+ for(const layer of ['official-land-slabs','official-land-outline','conceptual-building','conceptual-building-roof','conceptual-building-label'])if(map?.getLayer(layer))map.setFilter(layer,['==',['get','propertyId'],propertyId||'']);
+  for(const layer of ['land-pin-alternative-halo','land-pin-alternatives','land-pin-alternative-labels'])if(map?.getLayer(layer))map.setFilter(layer,['all',['==',['get','isPrimary'],false],['==',['get','propertyId'],propertyId||'']]);
  };
- const closePanel=()=>{panel.hidden=true;selectedPropertyId=null;if(map?.getLayer('selected-pin'))map.setFilter('selected-pin',['==',['get','propertyId'],'']);setSelected3DFilters('');};
+ const closePanel=()=>{panel.hidden=true;selectedPropertyId=null;if(map?.getLayer('selected-pin'))map.setFilter('selected-pin',['all',['==',['get','isPrimary'],true],['==',['get','propertyId'],'']]);setSelected3DFilters('');};
  const focusProperty=(property,coordinate=null,fly=true)=>{
   const index=properties.findIndex(item=>item.id===property.id);
   const coordinates=uniquePropertyCoordinates(property);
-  const pin=coordinate||coordinates[0]||null;
+  const pin=coordinate||primaryPropertyCoordinate(property)||null;
   const land3D={officialParcels:officialParcels.features.filter(feature=>feature.properties.propertyId===property.id),concept:conceptualBuildings.features.find(feature=>feature.properties.propertyId===property.id)||null};
   selectedPropertyId=property.id;panel.innerHTML=propertyPanelMarkup(property,index,properties.length,pin,land3D);panel.hidden=false;
   panel.querySelector('.map3d-panel-close').addEventListener('click',closePanel);
-  if(map?.getLayer('selected-pin'))map.setFilter('selected-pin',['==',['get','propertyId'],property.id]);
+  if(map?.getLayer('selected-pin'))map.setFilter('selected-pin',['all',['==',['get','isPrimary'],true],['==',['get','propertyId'],property.id]]);
   setSelected3DFilters(property.id);
   if(fly&&pin&&map)map.flyTo({center:[pin.lng,pin.lat],zoom:Math.max(map.getZoom(),18.2),pitch:68,bearing:map.getBearing(),offset:innerWidth<760?[0,-175]:[-110,0],duration:900});
  };
@@ -307,6 +362,18 @@ export async function createErgates3D(properties){
   });
  };
 const resetView=()=>map?.flyTo({...ERGATES_VIEW,duration:1000});
+ const applyPinFilters=()=>{
+  const primaryLayers=['land-pin-halo','land-pins','land-pin-icons','land-pin-labels'];
+  for(const layer of primaryLayers)if(map?.getLayer(layer))map.setFilter(layer,primaryFilterExpression());
+  if(map?.getLayer('land-pin-alt-badges'))map.setFilter('land-pin-alt-badges',primaryFilterExpression([['>',['get','alternativeCount'],0]]));
+  const visible=primaryFeatures.filter(featureMatchesFilters).length;
+  filterPopover.querySelector('.map3d-filter-count').textContent=`${visible} / ${summary.mapped}`;
+  const active=Number(pinFilters.type!=='all')+Number(pinFilters.accuracy!=='all');
+  const badge=filterButton.querySelector('.map3d-filter-active');badge.textContent=String(active);badge.hidden=!active;
+  if(selectedPropertyId){const selected=primaryFeatures.find(feature=>feature.properties.propertyId===selectedPropertyId);if(selected&&!featureMatchesFilters(selected))closePanel();}
+  window.dispatchEvent(new CustomEvent('ergates-3d-state-change'));
+ };
+ const setFilterPopoverOpen=open=>{filterPopover.hidden=!open;filterButton.setAttribute('aria-expanded',String(open));};
  const ensureMap=async()=>{
   if(map){map.resize();return;}
   maplibregl=await import(MAPLIBRE_MODULE);
@@ -318,9 +385,10 @@ const resetView=()=>map?.flyTo({...ERGATES_VIEW,duration:1000});
    addRealismLayers(map);
    addLand3DLayers(map,officialParcels,conceptualBuildings);
    addLandLayers(map,pinData);
+   applyPinFilters();
    dialog.querySelector('.map3d-loading').hidden=true;
   });
-  const interactiveLayers=['land-pins','land-pin-icons','land-pin-labels','land-pin-halo'];
+  const interactiveLayers=['land-pins','land-pin-icons','land-pin-labels','land-pin-halo','land-pin-alternatives','land-pin-alternative-labels','land-pin-alternative-halo'];
   map.on('mouseenter','land-pins',()=>{map.getCanvas().style.cursor='pointer';});
   map.on('mouseleave','land-pins',()=>{map.getCanvas().style.cursor='';});
   map.on('click',event=>{
@@ -338,9 +406,21 @@ const resetView=()=>map?.flyTo({...ERGATES_VIEW,duration:1000});
  };
  dialog.querySelector('.map3d-close-button').addEventListener('click',()=>dialog.close());
  dialog.querySelector('.map3d-panel').addEventListener('click',event=>event.stopPropagation());
+ filterButton.addEventListener('click',()=>{const open=filterPopover.hidden;if(open&&innerWidth<760)closePanel();setFilterPopoverOpen(open);});
+ filterPopover.addEventListener('click',event=>{
+  const button=event.target.closest('[data-filter-value]');if(!button)return;
+  const fieldset=button.closest('[data-pin-filter]');const key=fieldset.dataset.pinFilter;pinFilters[key]=button.dataset.filterValue;
+  fieldset.querySelectorAll('[data-filter-value]').forEach(item=>item.setAttribute('aria-pressed',String(item===button)));
+  applyPinFilters();
+ });
+ filterPopover.querySelector('.map3d-filter-reset').addEventListener('click',()=>{
+  pinFilters.type='all';pinFilters.accuracy='all';
+  filterPopover.querySelectorAll('[data-pin-filter]').forEach(fieldset=>fieldset.querySelectorAll('[data-filter-value]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.filterValue==='all'))));
+  applyPinFilters();
+ });
  dialog.querySelector('.map3d-list-button').addEventListener('click',openList);
  dialog.querySelector('.map3d-reset-button').addEventListener('click',resetView);
- dialog.addEventListener('close',()=>{closePanel();document.body.classList.remove('map3d-open');focusedBeforeOpen?.focus({preventScroll:true});});
+ dialog.addEventListener('close',()=>{closePanel();setFilterPopoverOpen(false);document.body.classList.remove('map3d-open');focusedBeforeOpen?.focus({preventScroll:true});});
  dialog.addEventListener('keydown',event=>{
   if(event.key.toLowerCase()==='f'&&!event.ctrlKey&&!event.metaKey&&!event.altKey&&event.target.tagName!=='INPUT'){
    event.preventDefault();if(document.fullscreenElement)document.exitFullscreen();else dialog.requestFullscreen?.();
@@ -351,7 +431,7 @@ const resetView=()=>map?.flyTo({...ERGATES_VIEW,duration:1000});
   try{await ensureMap();}catch(error){dialog.querySelector('.map3d-loading').innerHTML='<strong>Ο 3D χάρτης δεν φορτώθηκε.</strong><span>Έλεγξε τη σύνδεση στο διαδίκτυο και δοκίμασε ξανά.</span>';console.error('Ergates 3D map failed',error);}
   dialog.querySelector('.map3d-close-button').focus({preventScroll:true});
  };
- window.render_game_to_text=()=>JSON.stringify({mode:dialog.open?'ergates-3d-map':'catalogue',coordinateSystem:'Geographic coordinates [longitude, latitude]. North is up only when bearing is 0.',properties:summary.total,mappedProperties:summary.mapped,uniquePublishedPins:summary.pins,pinCategories:Object.fromEntries(['house','field','unsure'].map(category=>[category,pinData.features.filter(feature=>feature.properties.category===category).length])),selectedPropertyId,land3D:{officialMatchedParcels:officialParcels.features.length,officialMatchedProperties:new Set(officialParcels.features.map(feature=>feature.properties.propertyId)).size,conceptualBuildingVolumes:conceptualBuildings.features.length,conceptualBuildingProperties:new Set(conceptualBuildings.features.map(feature=>feature.properties.propertyId)).size,selectedOfficialParcel:Boolean(selectedPropertyId&&officialParcels.features.some(feature=>feature.properties.propertyId===selectedPropertyId)),selectedConceptualBuilding:Boolean(selectedPropertyId&&conceptualBuildings.features.some(feature=>feature.properties.propertyId===selectedPropertyId))},realism:map?{terrain:Boolean(map.getTerrain()),buildings:Boolean(map.getLayer('real-buildings')),visible3DBuildings:map.getLayer('real-buildings')?map.queryRenderedFeatures({layers:['real-buildings']}).length:0,roads:Boolean(map.getLayer('real-roads')),placeLabels:Boolean(map.getLayer('real-place-labels'))}:null,camera:map?{center:[map.getCenter().lng,map.getCenter().lat],zoom:map.getZoom(),pitch:map.getPitch(),bearing:map.getBearing()}:null});
+ window.render_game_to_text=()=>JSON.stringify({mode:dialog.open?'ergates-3d-map':'catalogue',coordinateSystem:'Geographic coordinates [longitude, latitude]. North is up only when bearing is 0.',properties:summary.total,mappedProperties:summary.mapped,uniquePublishedPins:summary.pins,visiblePrimaryPins:primaryFeatures.filter(featureMatchesFilters).length,hiddenAlternativePins:pinData.features.filter(feature=>!feature.properties.isPrimary).length,visibleSelectedAlternatives:selectedPropertyId?pinData.features.filter(feature=>feature.properties.propertyId===selectedPropertyId&&!feature.properties.isPrimary).length:0,activePinFilters:{...pinFilters},pinCategories:Object.fromEntries(['house','field','unsure'].map(category=>[category,primaryFeatures.filter(feature=>feature.properties.category===category&&featureMatchesFilters(feature)).length])),selectedPropertyId,land3D:{officialMatchedParcels:officialParcels.features.length,officialMatchedProperties:new Set(officialParcels.features.map(feature=>feature.properties.propertyId)).size,conceptualBuildingVolumes:conceptualBuildings.features.length,conceptualBuildingProperties:new Set(conceptualBuildings.features.map(feature=>feature.properties.propertyId)).size,selectedOfficialParcel:Boolean(selectedPropertyId&&officialParcels.features.some(feature=>feature.properties.propertyId===selectedPropertyId)),selectedConceptualBuilding:Boolean(selectedPropertyId&&conceptualBuildings.features.some(feature=>feature.properties.propertyId===selectedPropertyId))},realism:map?{terrain:Boolean(map.getTerrain()),buildings:Boolean(map.getLayer('real-buildings')),visible3DBuildings:map.getLayer('real-buildings')?map.queryRenderedFeatures({layers:['real-buildings']}).length:0,roads:Boolean(map.getLayer('real-roads')),placeLabels:Boolean(map.getLayer('real-place-labels'))}:null,camera:map?{center:[map.getCenter().lng,map.getCenter().lat],zoom:map.getZoom(),pitch:map.getPitch(),bearing:map.getBearing()}:null});
  window.advanceTime=()=>map?.triggerRepaint();
  return {open,close:()=>dialog.close(),summary,get map(){return map;}};
 }

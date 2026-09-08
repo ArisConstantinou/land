@@ -50,6 +50,23 @@ test('duplicate source coordinates collapse only within the same property',()=>{
  assert.equal(keys.size,101);
 });
 
+test('one primary marker per mapped property hides alternatives until selection',()=>{
+ const features=buildLandPinGeoJSON(properties).features;
+ const primary=features.filter(feature=>feature.properties.isPrimary);
+ const alternatives=features.filter(feature=>!feature.properties.isPrimary);
+ assert.equal(primary.length,53);
+ assert.equal(alternatives.length,48);
+ assert.equal(primary.filter(feature=>feature.properties.category==='unsure').length,27);
+ assert.equal(primary.filter(feature=>feature.properties.propertyType==='plot').length,17);
+ assert.equal(primary.filter(feature=>feature.properties.propertyType==='field').length,36);
+ for(const property of properties){
+  const pins=features.filter(feature=>feature.properties.propertyId===property.id);
+  if(!pins.length)continue;
+  assert.equal(pins.filter(feature=>feature.properties.isPrimary).length,1,property.id);
+  assert.equal(pins.find(feature=>feature.properties.isPrimary).properties.alternativeCount,pins.length-1,property.id);
+ }
+});
+
 test('conceptual 3D buildings use only published planning values',()=>{
  const geojson=buildConceptualBuildingGeoJSON(properties);
  assert.equal(geojson.features.length,86);

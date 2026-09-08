@@ -40,3 +40,15 @@ Original prompt: USE ALL LANDS AND PRODUCE A 3D AREA OF ERGATES WHICH CAN ROTATE
 - Asset versions bumped for the new 3D JavaScript and CSS.
 - Committed and pushed to `main` as `3272f1a`. GitHub Pages built that commit successfully.
 - Live public QA passed at 390×844: all three icon categories and both legend rows render, 3D terrain/buildings/roads/labels load, there is no horizontal overflow, and the console has zero errors or warnings.
+
+## Primary-pin decluttering and tilt guidance
+
+- Verified that 75 red markers represented 27 conflict properties because every alternative source coordinate was visible at once; the coordinates remain valid source evidence, but the default visualization over-counted uncertainty visually.
+- Changed the default map to one primary marker per mapped property (53 visible). The most reliable published coordinate is chosen by declared accuracy and agreement count; all 48 alternatives remain preserved and appear only when that property is selected.
+- Conflict pins now show a `+N` badge for hidden alternatives, and the property panel explains the smaller red alternative points after selection.
+- Clarified the on-map tilt instructions for desktop right-drag and two-finger mobile gestures.
+- Added icon filters for property type (all/plot/field) and location accuracy (all/exact/approximate/unsure), with combinable selections, active-filter badge, visible-pin counter and one-click reset.
+- Automated validation passed: JavaScript syntax, 14/14 tests and static build.
+- Desktop and 390×844 Chromium QA passed: plot + unsure produced 10/53 pins, reset restored 53/53, no horizontal overflow or console errors, and selecting a conflict pin revealed only its own alternative positions.
+- Asset versions bumped for the updated 3D JavaScript and CSS.
+- TODO: commit/push to main and live Pages validation.

@@ -34,7 +34,7 @@ function wire3DLauncher(){
  button.addEventListener('click',async()=>{
   if(button.dataset.loading)return;button.dataset.loading='true';button.classList.add('is-loading');button.setAttribute('aria-busy','true');
   try{
-   experiencePromise=experiencePromise||import('./map3d.js?v=3').then(module=>module.createErgates3D(data.properties));
+   experiencePromise=experiencePromise||import('./map3d.js?v=4').then(module=>module.createErgates3D(data.properties));
    const experience=await experiencePromise;await experience.open();
   }catch(error){experiencePromise=null;console.error(error);alert('Ο 3D χάρτης δεν μπόρεσε να ανοίξει. Έλεγξε τη σύνδεση και δοκίμασε ξανά.');}
   finally{delete button.dataset.loading;button.classList.remove('is-loading');button.removeAttribute('aria-busy');}

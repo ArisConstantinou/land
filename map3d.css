@@ -21,7 +21,8 @@ body.map3d-open{overflow:hidden}
 .map3d-header button,.map3d-panel-head button{min-height:48px;height:48px;border:1px solid #ffffff30;border-radius:9px;background:#ffffff12;color:#fff}
 .map3d-header button:hover,.map3d-panel-head button:hover{background:#ffffff24}
 .map3d-list-button{display:flex;align-items:center;gap:8px;padding:0 13px;font-weight:700}
-.map3d-reset-button,.map3d-close-button,.map3d-panel-close{width:48px;display:grid;place-items:center;padding:0}
+.map3d-filter-button,.map3d-reset-button,.map3d-close-button,.map3d-panel-close{position:relative;width:48px;display:grid;place-items:center;padding:0}
+.map3d-filter-active{position:absolute;top:-5px;right:-5px;display:grid;place-items:center;min-width:20px;height:20px;padding:0 5px;border:2px solid #0d3039;border-radius:12px;background:#e7a52d;color:#17333a;font-size:12px;font-weight:800}
 .map3d-stage{position:relative;min-height:0;overflow:hidden}
 .map3d-stage>.map3d-map{position:absolute;inset:0;width:100%;height:100%;background:radial-gradient(circle at 50% 35%,#335d63,#091b21)}
 .map3d-loading{position:absolute;z-index:8;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:radial-gradient(circle at 50% 40%,#29555e,#081b21);text-align:center;padding:25px}
@@ -42,6 +43,17 @@ body.map3d-open{overflow:hidden}
 .map3d-legend .pin-kind{display:grid;place-items:center;width:23px;height:23px;border-radius:50%;background:#14836f;color:#fff}
 .map3d-legend .pin-kind.unsure{background:#c84735}
 .map3d-legend .pin-kind svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.map3d-filter-popover{position:absolute;z-index:14;top:12px;right:68px;width:min(420px,calc(100% - 24px));padding:14px;border:1px solid #ffffff38;border-radius:12px;background:#0a252df2;box-shadow:0 12px 34px #0008;backdrop-filter:blur(12px)}
+.map3d-filter-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
+.map3d-filter-head strong{font-size:17px}.map3d-filter-count{padding:4px 8px;border-radius:12px;background:#ffffff18;color:#bfe0dd;font-size:13px;font-weight:700}
+.map3d-filter-popover fieldset{min-width:0;margin:0 0 12px;padding:0;border:0}
+.map3d-filter-popover legend{margin-bottom:7px;color:#9fd7d2;font-size:13px;font-weight:700}
+.map3d-filter-options{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px}
+.map3d-filter-options button{min-width:0;min-height:58px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:5px 4px;border:1px solid #ffffff35;border-radius:8px;background:#ffffff0d;color:#fff;font:inherit;font-size:12px;line-height:1.15}
+.map3d-filter-options button:hover{background:#ffffff20}.map3d-filter-options button[aria-pressed="true"]{border-color:#71e0d6;background:#176f6b;box-shadow:inset 0 0 0 1px #71e0d6}
+.map3d-filter-options svg{width:23px;height:23px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.map3d-filter-options .legend-dot{width:17px;height:17px;border:2px solid #fff;border-radius:50%}.map3d-filter-options .legend-dot.exact{background:#14836f}.map3d-filter-options .legend-dot.approximate{background:#e7a52d}
+.map3d-filter-reset{width:100%;min-height:44px;border:1px solid #ffffff35;border-radius:8px;background:#ffffff10;color:#fff;font:inherit;font-size:14px;font-weight:700}
 .map3d-panel{position:absolute;z-index:12;top:12px;right:12px;bottom:12px;width:clamp(340px,32vw,440px);display:flex;flex-direction:column;background:#f7faf9;color:#183039;border:1px solid #c9d9da;border-radius:14px;box-shadow:0 12px 40px #0008;overflow:hidden}
 .map3d-panel-head{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:62px;padding:7px 8px 7px 16px;background:#123e49;color:#fff;flex:0 0 auto}
 .map3d-panel-head>span{font-size:17px;font-weight:700}
@@ -93,6 +105,7 @@ body.map3d-open{overflow:hidden}
  .map3d-help{top:8px;left:8px;max-width:calc(100% - 72px)}.map3d-help span{font-size:12px}
  .map3d-legend{left:8px;right:8px;top:96px;gap:6px}
  .map3d-legend-row{gap:5px 9px}.map3d-legend-row>strong{min-width:54px}
+ .map3d-filter-popover{top:8px;left:8px;right:8px;width:auto;padding:12px}.map3d-filter-options{gap:5px}.map3d-filter-options button{min-height:56px;font-size:12px}
  .map3d-panel{top:auto;left:0;right:0;bottom:0;width:auto;max-height:52dvh;border-radius:16px 16px 0 0;border-bottom:0;padding-bottom:env(safe-area-inset-bottom)}
  .map3d-panel-photo{height:150px}.map3d-panel h2{font-size:24px}.map3d-price{font-size:23px}
  .map3d-property-list{min-height:0}
