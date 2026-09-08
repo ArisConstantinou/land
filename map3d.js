@@ -126,6 +126,8 @@ function closeIcon(){return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d
 function locateIcon(){return '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3"/></svg>';}
 function listIcon(){return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>';}
 function filterIcon(){return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"/></svg>';}
+function satelliteIcon(){return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 16-4 4m7-7-3 3m4-11 7 7-5 5-7-7 5-5Z"/><path d="M14 3c2 0 4 2 4 4M3 14c0 4 3 7 7 7"/></svg>';}
+function topographicIcon(){return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 18c3-4 5-1 8-5s5-1 10-6M3 13c3-4 5-1 8-5s5-1 10-6M3 22c3-4 5-1 8-5s5-1 10-6"/></svg>';}
 function housePinIcon(){return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 11 8-7 8 7v9H4v-9Z"/><path d="M9 20v-6h6v6"/></svg>';}
 function fieldPinIcon(){return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21V9"/><path d="M12 13c-5 0-7-3-7-7 5 0 7 3 7 7Zm0 3c5 0 7-3 7-7-5 0-7 3-7 7ZM4 21h16"/></svg>';}
 function unsurePinIcon(){return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.4 9a3 3 0 1 1 4.8 2.4c-1.5 1-2.2 1.6-2.2 3.1"/><circle cx="12" cy="19" r="1"/></svg>';}
@@ -148,6 +150,11 @@ function dialogMarkup(summary){
     <div class="map3d-help"><strong>Ζωντανή 3D περιοχή</strong><span>Αριστερό σύρσιμο: pan · δεξί πάνω/κάτω: κλίση · δύο δάχτυλα: κλίση/περιστροφή · ροδέλα ή pinch: zoom</span></div>
     <div class="map3d-filter-popover" aria-label="Φίλτρα πινέζων" hidden>
      <div class="map3d-filter-head"><strong>Φίλτρα pins</strong><span class="map3d-filter-count">${summary.mapped} / ${summary.mapped}</span></div>
+     <fieldset data-map-style><legend>Υπόβαθρο χάρτη</legend><div class="map3d-filter-options map3d-filter-options-three">
+      <button type="button" data-map-style-value="satellite" aria-pressed="true">${satelliteIcon()}<span>Δορυφορικό</span></button>
+      <button type="button" data-map-style-value="opentopo" aria-pressed="false">${topographicIcon()}<span>OpenTopoMap</span></button>
+      <button type="button" data-map-style-value="dls" aria-pressed="false">${topographicIcon()}<span>DLS API</span></button>
+     </div></fieldset>
      <fieldset data-pin-filter="type"><legend>Τύπος ακινήτου</legend><div class="map3d-filter-options">
       <button type="button" data-filter-value="all" aria-pressed="true">${filterIcon()}<span>Όλα</span></button>
       <button type="button" data-filter-value="plot" aria-pressed="false">${housePinIcon()}<span>Οικόπεδα</span></button>
@@ -251,6 +258,13 @@ function addRealismLayers(map){
  map.addLayer({id:'real-place-labels',type:'symbol',source:'openfreemap','source-layer':'place',minzoom:11,filter:['in',['get','class'],['literal',['town','village','suburb','quarter','hamlet','neighbourhood']]],layout:{'text-field':['coalesce',['get','name:el'],['get','name']],'text-font':['Open Sans Semibold'],'text-size':['interpolate',['linear'],['zoom'],11,13,16,17],'text-letter-spacing':.02,'text-padding':4},paint:{'text-color':'#fffdf5','text-halo-color':'rgba(12,28,32,.9)','text-halo-width':2,'text-halo-blur':.5}});
 }
 
+function addTopographicLayer(map){
+ map.addSource('open-topography',{type:'raster',tiles:['https://tile.opentopomap.org/{z}/{x}/{y}.png'],tileSize:256,minzoom:10,maxzoom:17,attribution:'Map data © OpenStreetMap contributors, SRTM | Map style © OpenTopoMap (CC-BY-SA)'});
+ map.addLayer({id:'open-topography',type:'raster',source:'open-topography',layout:{visibility:'none'},paint:{'raster-opacity':.98,'raster-fade-duration':0}},'real-buildings');
+ map.addSource('dls-topography',{type:'raster',tiles:['https://eservices.dls.moi.gov.cy/arcgis/rest/services/National/Topography_EN/MapServer/export?bbox={bbox-epsg-3857}&bboxSR=3857&imageSR=3857&size=256,256&format=png32&transparent=false&f=image'],tileSize:256,minzoom:10,maxzoom:19,attribution:'Topographic map © Department of Lands and Surveys, Republic of Cyprus · Public use may require DLS permission'});
+ map.addLayer({id:'dls-topography',type:'raster',source:'dls-topography',layout:{visibility:'none'},paint:{'raster-opacity':.98,'raster-fade-duration':0}},'real-buildings');
+}
+
 function addLand3DLayers(map,officialParcels,conceptualBuildings){
  map.addSource('official-land-parcels',{type:'geojson',data:officialParcels});
  map.addSource('conceptual-buildings',{type:'geojson',data:conceptualBuildings});
@@ -297,7 +311,7 @@ export async function createErgates3D(properties){
  const filterPopover=dialog.querySelector('.map3d-filter-popover');
  const filterButton=dialog.querySelector('.map3d-filter-button');
  const primaryFeatures=pinData.features.filter(feature=>feature.properties.isPrimary);
- let map=null;let maplibregl=null;let focusedBeforeOpen=null;let selectedPropertyId=null;
+ let map=null;let maplibregl=null;let focusedBeforeOpen=null;let selectedPropertyId=null;let basemapMode='satellite';
  const pinFilters={type:'all',accuracy:'all'};
 
  const featureMatchesFilters=feature=>{
@@ -368,10 +382,16 @@ const resetView=()=>map?.flyTo({...ERGATES_VIEW,duration:1000});
   if(map?.getLayer('land-pin-alt-badges'))map.setFilter('land-pin-alt-badges',primaryFilterExpression([['>',['get','alternativeCount'],0]]));
   const visible=primaryFeatures.filter(featureMatchesFilters).length;
   filterPopover.querySelector('.map3d-filter-count').textContent=`${visible} / ${summary.mapped}`;
-  const active=Number(pinFilters.type!=='all')+Number(pinFilters.accuracy!=='all');
+  const active=Number(pinFilters.type!=='all')+Number(pinFilters.accuracy!=='all')+Number(basemapMode!=='satellite');
   const badge=filterButton.querySelector('.map3d-filter-active');badge.textContent=String(active);badge.hidden=!active;
   if(selectedPropertyId){const selected=primaryFeatures.find(feature=>feature.properties.propertyId===selectedPropertyId);if(selected&&!featureMatchesFilters(selected))closePanel();}
   window.dispatchEvent(new CustomEvent('ergates-3d-state-change'));
+ };
+ const applyBasemapMode=()=>{
+  if(map?.getLayer('open-topography'))map.setLayoutProperty('open-topography','visibility',basemapMode==='opentopo'?'visible':'none');
+  if(map?.getLayer('dls-topography'))map.setLayoutProperty('dls-topography','visibility',basemapMode==='dls'?'visible':'none');
+  dialog.querySelectorAll('[data-map-style-value]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.mapStyleValue===basemapMode)));
+  applyPinFilters();
  };
  const setFilterPopoverOpen=open=>{filterPopover.hidden=!open;filterButton.setAttribute('aria-expanded',String(open));};
  const ensureMap=async()=>{
@@ -383,6 +403,7 @@ const resetView=()=>map?.flyTo({...ERGATES_VIEW,duration:1000});
   map.on('load',()=>{
    map.setTerrain({source:'terrain',exaggeration:1.08});
    addRealismLayers(map);
+   addTopographicLayer(map);
    addLand3DLayers(map,officialParcels,conceptualBuildings);
    addLandLayers(map,pinData);
    applyPinFilters();
@@ -408,15 +429,17 @@ const resetView=()=>map?.flyTo({...ERGATES_VIEW,duration:1000});
  dialog.querySelector('.map3d-panel').addEventListener('click',event=>event.stopPropagation());
  filterButton.addEventListener('click',()=>{const open=filterPopover.hidden;if(open&&innerWidth<760)closePanel();setFilterPopoverOpen(open);});
  filterPopover.addEventListener('click',event=>{
+  const mapStyleButton=event.target.closest('[data-map-style-value]');
+  if(mapStyleButton){basemapMode=mapStyleButton.dataset.mapStyleValue;applyBasemapMode();return;}
   const button=event.target.closest('[data-filter-value]');if(!button)return;
   const fieldset=button.closest('[data-pin-filter]');const key=fieldset.dataset.pinFilter;pinFilters[key]=button.dataset.filterValue;
   fieldset.querySelectorAll('[data-filter-value]').forEach(item=>item.setAttribute('aria-pressed',String(item===button)));
   applyPinFilters();
  });
  filterPopover.querySelector('.map3d-filter-reset').addEventListener('click',()=>{
-  pinFilters.type='all';pinFilters.accuracy='all';
+  pinFilters.type='all';pinFilters.accuracy='all';basemapMode='satellite';
   filterPopover.querySelectorAll('[data-pin-filter]').forEach(fieldset=>fieldset.querySelectorAll('[data-filter-value]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.filterValue==='all'))));
-  applyPinFilters();
+  applyBasemapMode();
  });
  dialog.querySelector('.map3d-list-button').addEventListener('click',openList);
  dialog.querySelector('.map3d-reset-button').addEventListener('click',resetView);
@@ -431,7 +454,7 @@ const resetView=()=>map?.flyTo({...ERGATES_VIEW,duration:1000});
   try{await ensureMap();}catch(error){dialog.querySelector('.map3d-loading').innerHTML='<strong>Ο 3D χάρτης δεν φορτώθηκε.</strong><span>Έλεγξε τη σύνδεση στο διαδίκτυο και δοκίμασε ξανά.</span>';console.error('Ergates 3D map failed',error);}
   dialog.querySelector('.map3d-close-button').focus({preventScroll:true});
  };
- window.render_game_to_text=()=>JSON.stringify({mode:dialog.open?'ergates-3d-map':'catalogue',coordinateSystem:'Geographic coordinates [longitude, latitude]. North is up only when bearing is 0.',properties:summary.total,mappedProperties:summary.mapped,uniquePublishedPins:summary.pins,visiblePrimaryPins:primaryFeatures.filter(featureMatchesFilters).length,hiddenAlternativePins:pinData.features.filter(feature=>!feature.properties.isPrimary).length,visibleSelectedAlternatives:selectedPropertyId?pinData.features.filter(feature=>feature.properties.propertyId===selectedPropertyId&&!feature.properties.isPrimary).length:0,activePinFilters:{...pinFilters},pinCategories:Object.fromEntries(['house','field','unsure'].map(category=>[category,primaryFeatures.filter(feature=>feature.properties.category===category&&featureMatchesFilters(feature)).length])),selectedPropertyId,land3D:{officialMatchedParcels:officialParcels.features.length,officialMatchedProperties:new Set(officialParcels.features.map(feature=>feature.properties.propertyId)).size,conceptualBuildingVolumes:conceptualBuildings.features.length,conceptualBuildingProperties:new Set(conceptualBuildings.features.map(feature=>feature.properties.propertyId)).size,selectedOfficialParcel:Boolean(selectedPropertyId&&officialParcels.features.some(feature=>feature.properties.propertyId===selectedPropertyId)),selectedConceptualBuilding:Boolean(selectedPropertyId&&conceptualBuildings.features.some(feature=>feature.properties.propertyId===selectedPropertyId))},realism:map?{terrain:Boolean(map.getTerrain()),buildings:Boolean(map.getLayer('real-buildings')),visible3DBuildings:map.getLayer('real-buildings')?map.queryRenderedFeatures({layers:['real-buildings']}).length:0,roads:Boolean(map.getLayer('real-roads')),placeLabels:Boolean(map.getLayer('real-place-labels'))}:null,camera:map?{center:[map.getCenter().lng,map.getCenter().lat],zoom:map.getZoom(),pitch:map.getPitch(),bearing:map.getBearing()}:null});
+ window.render_game_to_text=()=>JSON.stringify({mode:dialog.open?'ergates-3d-map':'catalogue',coordinateSystem:'Geographic coordinates [longitude, latitude]. North is up only when bearing is 0.',properties:summary.total,mappedProperties:summary.mapped,uniquePublishedPins:summary.pins,visiblePrimaryPins:primaryFeatures.filter(featureMatchesFilters).length,hiddenAlternativePins:pinData.features.filter(feature=>!feature.properties.isPrimary).length,visibleSelectedAlternatives:selectedPropertyId?pinData.features.filter(feature=>feature.properties.propertyId===selectedPropertyId&&!feature.properties.isPrimary).length:0,basemapMode,activePinFilters:{...pinFilters},pinCategories:Object.fromEntries(['house','field','unsure'].map(category=>[category,primaryFeatures.filter(feature=>feature.properties.category===category&&featureMatchesFilters(feature)).length])),selectedPropertyId,land3D:{officialMatchedParcels:officialParcels.features.length,officialMatchedProperties:new Set(officialParcels.features.map(feature=>feature.properties.propertyId)).size,conceptualBuildingVolumes:conceptualBuildings.features.length,conceptualBuildingProperties:new Set(conceptualBuildings.features.map(feature=>feature.properties.propertyId)).size,selectedOfficialParcel:Boolean(selectedPropertyId&&officialParcels.features.some(feature=>feature.properties.propertyId===selectedPropertyId)),selectedConceptualBuilding:Boolean(selectedPropertyId&&conceptualBuildings.features.some(feature=>feature.properties.propertyId===selectedPropertyId))},realism:map?{terrain:Boolean(map.getTerrain()),buildings:Boolean(map.getLayer('real-buildings')),visible3DBuildings:map.getLayer('real-buildings')?map.queryRenderedFeatures({layers:['real-buildings']}).length:0,roads:Boolean(map.getLayer('real-roads')),placeLabels:Boolean(map.getLayer('real-place-labels')),openTopoMap:basemapMode==='opentopo'&&map.getLayer('open-topography')?map.getLayoutProperty('open-topography','visibility')==='visible':false,dlsTopographicApi:basemapMode==='dls'&&map.getLayer('dls-topography')?map.getLayoutProperty('dls-topography','visibility')==='visible':false}:null,camera:map?{center:[map.getCenter().lng,map.getCenter().lat],zoom:map.getZoom(),pitch:map.getPitch(),bearing:map.getBearing()}:null});
  window.advanceTime=()=>map?.triggerRepaint();
  return {open,close:()=>dialog.close(),summary,get map(){return map;}};
 }

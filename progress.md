@@ -51,4 +51,10 @@ Original prompt: USE ALL LANDS AND PRODUCE A 3D AREA OF ERGATES WHICH CAN ROTATE
 - Automated validation passed: JavaScript syntax, 14/14 tests and static build.
 - Desktop and 390×844 Chromium QA passed: plot + unsure produced 10/53 pins, reset restored 53/53, no horizontal overflow or console errors, and selecting a conflict pin revealed only its own alternative positions.
 - Asset versions bumped for the updated 3D JavaScript and CSS.
-- TODO: commit/push to main and live Pages validation.
+- Initial icon-filter release was committed and pushed to `main` as `4f01492`; GitHub Pages built it successfully.
+- Follow-up research found the current official Cyprus DLS `National/Topography_EN` ArcGIS MapServer (server version 10.91), containing road/hydrographic networks, spot heights, altitude tints and Contour Lines 1993. The DLS catalogue says API access should be arranged with its portal administrator, and the August 2026 map price list confirms that available printed/PDF series have mixed editions rather than one uniformly current Ergates survey.
+- The official DLS layer was validated locally but not selected for the public site: the DLS states that API access should be arranged with its administrator and map publication can require a licence/royalty.
+- Added a third icon-filter group with three independent basemap choices: satellite, OpenTopoMap and the official Cyprus DLS Topography API. Both topographic sources retain terrain, 3D buildings, land geometry and pins; attribution and the DLS permission caveat remain visible.
+- Local Chromium QA passed for OpenTopoMap and DLS at desktop and 390×844. Both sources returned HTTP 200 tiles, only the selected raster layer was visible, reset restored satellite, all 53 primary pins remained present, mobile had no horizontal overflow, and the console had zero errors or warnings.
+- Asset versions were bumped. Automated validation passed: JavaScript syntax, 14/14 tests, static build and `git diff --check`.
+- TODO: commit/push the dual-topographic follow-up to `main`, verify GitHub Pages deployment, then live-test both source switches.
