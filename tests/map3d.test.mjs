@@ -1,10 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
-import {buildLandPinGeoJSON,summarizeMapProperties,uniquePropertyCoordinates} from '../map3d.js';
+import {buildConceptualBuildingGeoJSON,buildLandPinGeoJSON,summarizeMapProperties,uniquePropertyCoordinates} from '../map3d.js';
 
 const data=JSON.parse(await readFile(new URL('../data/properties.json',import.meta.url),'utf8'));
 const properties=data.properties;
+const officialParcels=JSON.parse(await readFile(new URL('../data/land-parcels.geojson',import.meta.url),'utf8'));
 
 test('3D map includes every property without inventing coordinates',()=>{
  const summary=summarizeMapProperties(properties);
@@ -44,4 +45,30 @@ test('duplicate source coordinates collapse only within the same property',()=>{
   assert.equal(keys.has(key),false,'duplicate marker '+key);keys.add(key);
  }
  assert.equal(keys.size,101);
+});
+
+test('conceptual 3D buildings use only published planning values',()=>{
+ const geojson=buildConceptualBuildingGeoJSON(properties);
+ assert.equal(geojson.features.length,86);
+ assert.equal(new Set(geojson.features.map(feature=>feature.properties.propertyId)).size,41);
+ for(const feature of geojson.features){
+  const property=properties.find(item=>item.id===feature.properties.propertyId);
+  const coverages=(property.facts.coverage||[]).map(item=>Number(item.value));
+  const heights=(property.facts.height||[]).map(item=>Number(item.value));
+  const floors=(property.facts.floors||[]).map(item=>Number(item.value));
+  assert.equal(feature.properties.coverage,Math.min(...coverages));
+  assert.ok(heights.includes(feature.properties.height)||floors.some(value=>value*3===feature.properties.height));
+ }
+});
+
+test('official 3D land slabs have a reproducible cadastral match',()=>{
+ assert.equal(officialParcels.features.length,11);
+ assert.equal(new Set(officialParcels.features.map(feature=>feature.properties.propertyId)).size,10);
+ for(const feature of officialParcels.features){
+  const property=properties.find(item=>item.id===feature.properties.propertyId);
+  assert.ok(property,'official parcel property must exist');
+  const numberMatch=feature.properties.listedParcelNumbers.includes(feature.properties.officialParcelNumber);
+  const areaMatch=feature.properties.listedAreas.some(area=>Math.abs(area-feature.properties.officialArea)<=Math.max(10,area*.03));
+  assert.ok(numberMatch||areaMatch,property.id+' needs parcel-number or area match');
+ }
 });

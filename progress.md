@@ -17,3 +17,14 @@ Original prompt: USE ALL LANDS AND PRODUCE A 3D AREA OF ERGATES WHICH CAN ROTATE
 - Real Chromium QA passed at 1280×720 and 390×844: terrain/buildings/roads/labels load, rotate/zoom/reset work, land clicks open the correct panel, Escape restores launcher focus, and mobile has no horizontal overflow.
 - Validation passed: 11/11 tests, JavaScript syntax checks, production build and zero current browser console errors/warnings.
 - TODO: commit/push and live GitHub Pages verification.
+
+## 3D land and building-volume follow-up
+
+- User requested 3D presence for the listed lands themselves, referencing a selected empty plot among extruded surrounding buildings.
+- Added a reproducible Cyprus DLS INSPIRE parcel sync. It accepts a parcel only when its official parcel number matches a published number or its official area matches a published listing area within 3% (minimum 10 m² tolerance).
+- Current verified result: 11 official polygons belonging to 10 listed properties. Other pin-underlying parcels are deliberately rejected rather than presented as the advertised property.
+- Added 86 conceptual building volumes for 41 properties with published coverage plus published height/floors. Footprints and heights are data-derived, while placement and rectangular form are explicitly labeled schematic and non-architectural.
+- Desktop and mobile Chromium QA passed for a property with both official parcel and conceptual building: auto-zoom, camera offset, parcel slab, building walls/roof, panel notes and text state agree. Mobile remains 390px wide without overflow and keeps the selected model above the bottom sheet.
+- Negative case passed: a mapped listing without a safe parcel match or sufficient planning data displays neither fabricated geometry nor a conceptual building and explains why in its panel.
+- Validation passed: 13/13 tests, syntax checks, build and zero browser console errors/warnings.
+- TODO: commit, push and verify the new GitHub Pages deployment.
